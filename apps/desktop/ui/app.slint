@@ -72,6 +72,17 @@ export component AppWindow inherits Window {
     callback seek-playback(float);
     callback change-volume(float);
 
+    out property <float> video-x:
+    watch-page.video-surface-x / 1px;
+
+    out property <float> video-y:
+    watch-page.video-surface-y / 1px;
+
+    out property <float> video-width:
+    watch-page.video-surface-width / 1px;
+
+    out property <float> video-height:
+    watch-page.video-surface-height / 1px;
     if root.current-page == "search": SearchPage {
         videos: root.videos;
         loading: root.loading;
@@ -109,46 +120,28 @@ export component AppWindow inherits Window {
         }
     }
 
-    if root.current-page == "watch": WatchPage {
-    // ======================================
-    // VIDEO INFORMATION
-    // ======================================
+    watch-page := WatchPage {
+        visible: root.current-page == "watch";
 
-    video-id: root.selected-video-id;
+        video-id: root.selected-video-id;
         video-title: root.selected-video-title;
         channel: root.selected-video-channel;
 
-        // ======================================
-    // LIBRARY
-    // ======================================
-
-    playlists: root.playlist-names;
+        playlists: root.playlist-names;
         library-status: root.watch-library-status;
 
-        // ======================================
-    // PLAYER STATE
-    // ======================================
-
-    player-ready: root.player-ready;
+        player-ready: root.player-ready;
         player-paused: root.player-paused;
 
         playback-position: root.playback-position;
         playback-duration: root.playback-duration;
         playback-volume: root.playback-volume;
 
-        // ======================================
-    // NAVIGATION
-    // ======================================
-
-    back => {
+        back => {
             root.current-page = "search";
         }
 
-    // ======================================
-    // VIDEO PLAYBACK
-    // ======================================
-
-    play(id) => {
+        play(id) => {
             root.play-video(id);
         }
 
@@ -168,11 +161,7 @@ export component AppWindow inherits Window {
             root.change-volume(value);
         }
 
-    // ======================================
-    // LIBRARY ACTIONS
-    // ======================================
-
-    toggle-favorite => {
+        toggle-favorite => {
             root.toggle-favorite();
         }
 

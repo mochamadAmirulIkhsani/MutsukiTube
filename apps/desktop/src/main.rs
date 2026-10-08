@@ -11,11 +11,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use mutsukitube_core::Video;
-
-use mutsukitube_storage::{
-    add_to_playlist, get_playlist_names, get_provider_mode, toggle_favorite,
-};
+use mutsukitube_storage::{get_playlist_names, get_provider_mode};
 
 use slint::{ComponentHandle, ModelRc, VecModel};
 
@@ -41,17 +37,10 @@ mod player_controller;
 #[cfg(target_os = "windows")]
 use mutsukitube_player::ExternalMpvPlayer;
 
-slint::include_modules!();
+#[cfg(target_os = "windows")]
+use native_window::geometry::VideoGeometry;
 
-fn find_video(state: &AppState, id: &str) -> Option<Video> {
-    state
-        .search_results
-        .iter()
-        .chain(state.history_results.iter())
-        .chain(state.library_results.iter())
-        .find(|video| video.id == id)
-        .cloned()
-}
+slint::include_modules!();
 
 #[cfg(target_os = "windows")]
 fn get_slint_hwnd(ui: &AppWindow) -> Option<windows_sys::Win32::Foundation::HWND> {
@@ -141,11 +130,11 @@ fn main() -> Result<(), slint::PlatformError> {
 
         let timer = slint::Timer::default();
 
-        let last_logged_second = std::cell::Cell::new(None::<u64>);
+        let last_geometry = std::cell::Cell::new(None::<VideoGeometry>);
 
         timer.start(
             slint::TimerMode::Repeated,
-            Duration::from_millis(100),
+            Duration::from_millis(200),
             move || {
                 let Some(ui) = weak.upgrade() else {
                     return;
@@ -178,27 +167,6 @@ fn main() -> Result<(), slint::PlatformError> {
                     ui.set_player_paused(paused);
                 }
 
-                let position = session.controller.position();
-                let duration = session.controller.duration();
-
-                if let (Some(position), Some(duration)) = (position, duration) {
-                    if position.is_finite()
-                        && duration.is_finite()
-                        && position >= 0.0
-                        && duration > 0.0
-                    {
-                        let current_second = position.floor() as u64;
-
-                        if current_second % 10 == 0
-                            && last_logged_second.get() != Some(current_second)
-                        {
-                            last_logged_second.set(Some(current_second));
-
-                            println!("[libmpv] Position: {:.1}s / {:.1}s", position, duration,);
-                        }
-                    }
-                }
-
                 session.controller.on_navigation(is_watch);
 
                 if !is_watch {
@@ -211,6 +179,8 @@ fn main() -> Result<(), slint::PlatformError> {
                     ui.set_player_paused(true);
                     ui.set_playback_position(0.0);
                     ui.set_playback_duration(0.0);
+
+                    last_geometry.set(None);
 
                     return;
                 }
@@ -235,12 +205,46 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                 }
 
-                if let Some(surface) = session.surface.as_ref() {
-                    if let Err(error) = surface.set_geometry(24, 100, 640, 360) {
-                        eprintln!("[MutsukiTube] Geometry error: {error}");
-                    }
+                // ========================================
+                // RESPONSIVE NATIVE VIDEO SURFACE
+                // ========================================
 
-                    surface.show();
+                let geometry = VideoGeometry::from_slint(&ui);
+
+                if let Some(surface) = session.surface.as_ref() {
+                    match geometry {
+                        Some(rect) => {
+                            // Update HWND hanya jika geometry berubah.
+                            if last_geometry.get() != Some(rect) {
+                                match surface.set_geometry(rect.x, rect.y, rect.width, rect.height)
+                                {
+                                    Ok(()) => {
+                                        last_geometry.set(Some(rect));
+
+                                        println!(
+                                            "[MutsukiTube] Video surface: \
+                             {}x{} at ({}, {})",
+                                            rect.width, rect.height, rect.x, rect.y,
+                                        );
+                                    }
+
+                                    Err(error) => {
+                                        eprintln!("[MutsukiTube] Geometry error: {error}");
+                                    }
+                                }
+                            }
+
+                            surface.show();
+                        }
+
+                        None => {
+                            surface.hide();
+                            last_geometry.set(None);
+
+                            // Layout belum memiliki area valid.
+                            return;
+                        }
+                    }
                 }
 
                 if !session.controller.is_initialized() {

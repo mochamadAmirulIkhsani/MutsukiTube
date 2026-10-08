@@ -35,32 +35,19 @@ export component WatchPage inherits Rectangle {
     in property <float> playback-duration: 0;
     in property <float> playback-volume: 70;
 
-    // ==========================================
-    // VIDEO SURFACE GEOMETRY
-    // For Phase 17F
-    // ==========================================
-
     out property <length> video-surface-x:
-        video-surface.absolute-position.x;
+    video-surface.absolute-position.x;
 
     out property <length> video-surface-y:
-        video-surface.absolute-position.y;
+    video-surface.absolute-position.y;
 
     out property <length> video-surface-width:
-        video-surface.width;
+    video-surface.width;
 
     out property <length> video-surface-height:
-        video-surface.height;
-
-    // ==========================================
-    // NAVIGATION CALLBACKS
-    // ==========================================
+    video-surface.height;
 
     callback back();
-
-    // ==========================================
-    // VIDEO CALLBACKS
-    // ==========================================
 
     callback play(string);
 
@@ -70,26 +57,14 @@ export component WatchPage inherits Rectangle {
     callback seek-playback(float);
     callback change-volume(float);
 
-    // ==========================================
-    // LIBRARY CALLBACKS
-    // ==========================================
-
     callback toggle-favorite();
     callback add-to-playlist(string);
-
-    // ==========================================
-    // ROOT STYLE
-    // ==========================================
 
     background: #0f0f0f;
 
     VerticalBox {
         padding: 20px;
         spacing: 16px;
-
-        // ======================================
-        // HEADER
-        // ======================================
 
         HorizontalBox {
             spacing: 12px;
@@ -116,10 +91,6 @@ export component WatchPage inherits Rectangle {
             }
         }
 
-        // ======================================
-        // NATIVE VIDEO SURFACE
-        // ======================================
-
         video-surface := Rectangle {
             height: 360px;
             horizontal-stretch: 1;
@@ -127,25 +98,13 @@ export component WatchPage inherits Rectangle {
             background: #050505;
             border-radius: 8px;
 
-            // Placeholder only.
-            // The Win32 child HWND will render
-            // on top of this rectangle.
             Text {
-                text: root.player-ready
-                    ? ""
-                    : "Video Player";
-
+                text: root.player-ready ? "" : "Video Player";
                 color: #777777;
-                font-size: 22px;
-
                 horizontal-alignment: center;
                 vertical-alignment: center;
             }
         }
-
-        // ======================================
-        // LOAD VIDEO BUTTON
-        // ======================================
 
         HorizontalBox {
             spacing: 12px;
@@ -174,10 +133,6 @@ export component WatchPage inherits Rectangle {
                 background: transparent;
             }
         }
-
-        // ======================================
-        // VIDEO SEEK BAR
-        // ======================================
 
         VerticalBox {
             spacing: 6px;
@@ -224,10 +179,6 @@ export component WatchPage inherits Rectangle {
                 }
             }
         }
-
-        // ======================================
-        // PLAYBACK CONTROLS
-        // ======================================
 
         HorizontalBox {
             spacing: 12px;
@@ -291,10 +242,6 @@ export component WatchPage inherits Rectangle {
             }
         }
 
-        // ======================================
-        // VIDEO INFORMATION
-        // ======================================
-
         Text {
             text: root.video-title;
 
@@ -311,10 +258,6 @@ export component WatchPage inherits Rectangle {
             color: #aaaaaa;
             font-size: 16px;
         }
-
-        // ======================================
-        // LIBRARY ACTIONS
-        // ======================================
 
         HorizontalBox {
             spacing: 12px;
@@ -346,10 +289,6 @@ export component WatchPage inherits Rectangle {
             }
         }
 
-        // ======================================
-        // LIBRARY STATUS
-        // ======================================
-
         if root.library-status != "": Text {
             text: root.library-status;
 
@@ -358,10 +297,6 @@ export component WatchPage inherits Rectangle {
 
             wrap: word-wrap;
         }
-
-        // ======================================
-        // REMAINING SPACE
-        // ======================================
 
         Rectangle {
             vertical-stretch: 1;
