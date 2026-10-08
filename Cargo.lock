@@ -3148,6 +3148,7 @@ dependencies = [
  "mutsukitube-storage",
  "mutsukitube-youtube",
  "reqwest",
+ "rusqlite",
  "sha2",
  "slint",
  "slint-build",
