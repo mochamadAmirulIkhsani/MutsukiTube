@@ -17,4 +17,8 @@ pub struct AppState {
     pub provider_mode: String,
 
     pub library_results: Vec<Video>,
+
+    pub history_generation: u64,
+
+    pub library_generation: u64,
 }
