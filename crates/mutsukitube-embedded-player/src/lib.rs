@@ -59,6 +59,8 @@ impl EmbeddedMpvPlayer {
             return Err("Invalid HWND".into());
         }
 
+        // Nilai HWND harus diperlakukan sebagai ID window,
+        // bukan pointer yang dapat di-dereference.
         let window_id = (hwnd as u32).to_string();
 
         let mpv = Mpv::builder()

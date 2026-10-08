@@ -3144,6 +3144,7 @@ dependencies = [
  "futures",
  "hex",
  "mutsukitube-core",
+ "mutsukitube-embedded-player",
  "mutsukitube-player",
  "mutsukitube-storage",
  "mutsukitube-youtube",

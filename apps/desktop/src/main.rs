@@ -32,6 +32,9 @@ use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 #[cfg(target_os = "windows")]
 use native_window::windows::Win32VideoSurface;
 
+#[cfg(target_os = "windows")]
+use native_window::session::NativeVideoSession;
+
 slint::include_modules!();
 
 fn find_video(state: &AppState, id: &str) -> Option<Video> {
@@ -223,12 +226,16 @@ fn main() -> Result<(), slint::PlatformError> {
     handlers::search::register(&ui, &context);
 
     #[cfg(target_os = "windows")]
-    let surface_timer = {
+    let (surface_timer, native_session) = {
         use std::time::Duration;
 
         let weak = ui.as_weak();
 
-        let surface = Rc::new(RefCell::new(None::<Win32VideoSurface>));
+        let session = Rc::new(RefCell::new(NativeVideoSession::new()));
+
+        let session_for_timer = session.clone();
+
+        let test_video = std::env::var("MUTSUKITUBE_TEST_VIDEO").ok();
 
         let timer = slint::Timer::default();
 
@@ -240,41 +247,112 @@ fn main() -> Result<(), slint::PlatformError> {
                     return;
                 };
 
-                let on_watch_page = ui.get_current_page().as_str() == "watch";
+                let is_watch = ui.get_current_page().as_str() == "watch";
 
-                // Surface dibuat setelah Slint
-                // mempunyai native HWND.
-                if surface.borrow().is_none() && on_watch_page {
-                    if let Some(parent) = get_slint_hwnd(&ui) {
-                        match Win32VideoSurface::new(parent) {
-                            Ok(child) => {
-                                println!("[MutsukiTube] Child HWND created");
-                                *surface.borrow_mut() = Some(child);
-                            }
+                let mut session = session_for_timer.borrow_mut();
 
-                            Err(error) => {
-                                eprintln!("[MutsukiTube] HWND error: {error}");
-                            }
+                // ======================================
+                // CREATE NATIVE VIDEO SURFACE
+                // ======================================
+
+                if is_watch && session.surface.is_none() {
+                    let Some(parent) = get_slint_hwnd(&ui) else {
+                        return;
+                    };
+
+                    match Win32VideoSurface::new(parent) {
+                        Ok(surface) => {
+                            println!("[MutsukiTube] Child HWND created");
+
+                            session.surface = Some(surface);
+                        }
+
+                        Err(error) => {
+                            eprintln!("[MutsukiTube] Surface error: {error}");
+
+                            return;
                         }
                     }
                 }
 
-                if let Some(child) = surface.borrow().as_ref() {
-                    if on_watch_page {
-                        // Posisi sementara untuk pengujian.
-                        if let Err(error) = child.set_geometry(24, 100, 640, 360) {
-                            eprintln!("[MutsukiTube] Resize error: {error}");
+                // ======================================
+                // UPDATE SURFACE
+                // ======================================
+
+                if let Some(surface) = session.surface.as_ref() {
+                    if is_watch {
+                        if let Err(error) = surface.set_geometry(24, 100, 640, 360) {
+                            eprintln!("[MutsukiTube] Geometry error: {error}");
                         }
 
-                        child.show();
+                        surface.show();
                     } else {
-                        child.hide();
+                        surface.hide();
+                        return;
+                    }
+                }
+
+                // ======================================
+                // INITIALIZE LIBMPV
+                // ======================================
+
+                if is_watch && session.player.is_none() {
+                    let Some(surface) = session.surface.as_ref() else {
+                        return;
+                    };
+
+                    let hwnd = surface.hwnd() as usize;
+
+                    match mutsukitube_embedded_player::EmbeddedMpvPlayer::new_for_hwnd(hwnd) {
+                        Ok(player) => {
+                            println!("[MutsukiTube] Embedded libmpv initialized");
+
+                            session.player = Some(player);
+                        }
+
+                        Err(error) => {
+                            eprintln!("[MutsukiTube] libmpv error: {error}");
+
+                            return;
+                        }
+                    }
+                }
+
+                // ======================================
+                // PLAY LOCAL TEST VIDEO
+                // ======================================
+
+                if !session.media_loaded {
+                    if let (Some(player), Some(video_path)) =
+                        (session.player.as_ref(), test_video.as_ref())
+                    {
+                        match player.load(video_path) {
+                            Ok(()) => {
+                                println!(
+                                    "[MutsukiTube] Loading test video: \
+                                 {video_path}"
+                                );
+
+                                session.media_loaded = true;
+                            }
+
+                            Err(error) => {
+                                eprintln!(
+                                    "[MutsukiTube] Playback error: \
+                                 {error}"
+                                );
+
+                                // Jangan mengulangi load
+                                // setiap 100 milidetik.
+                                session.media_loaded = true;
+                            }
+                        }
                     }
                 }
             },
         );
 
-        timer
+        (timer, session)
     };
 
     #[cfg(target_os = "windows")]
@@ -283,7 +361,12 @@ fn main() -> Result<(), slint::PlatformError> {
     let result = ui.run();
 
     #[cfg(target_os = "windows")]
-    surface_timer.stop();
+    {
+        surface_timer.stop();
+
+        // Pastikan player dilepaskan sebelum HWND.
+        native_session.borrow_mut().shutdown();
+    }
 
     result
 }
