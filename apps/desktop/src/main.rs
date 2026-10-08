@@ -1,12 +1,12 @@
 mod state;
 mod thumbnail;
+mod thumbnail_ui;
+mod ui_models;
 
 use std::{
     rc::Rc,
     sync::{Arc, Mutex},
 };
-
-use futures::stream::{self, StreamExt};
 
 use mutsukitube_core::{ProviderError, Video, VideoProvider};
 
@@ -22,37 +22,14 @@ use mutsukitube_youtube::{NativeYoutubeProvider, ProviderMode, SearchPage, YtDlp
 use slint::{ComponentHandle, Model, ModelRc, VecModel};
 
 use state::AppState;
-use thumbnail::download_thumbnail;
 
 use rusqlite;
 
+use ui_models::video_to_ui;
+
+use thumbnail_ui::{ThumbnailTarget, queue_thumbnails};
+
 slint::include_modules!();
-
-fn format_duration(seconds: Option<u64>) -> String {
-    let Some(seconds) = seconds else {
-        return String::new();
-    };
-
-    let hours = seconds / 3600;
-    let minutes = (seconds % 3600) / 60;
-    let seconds = seconds % 60;
-
-    if hours > 0 {
-        format!("{hours}:{minutes:02}:{seconds:02}")
-    } else {
-        format!("{minutes}:{seconds:02}")
-    }
-}
-
-fn video_to_ui(video: &Video, thumbnail: slint::Image) -> VideoItem {
-    VideoItem {
-        id: video.id.clone().into(),
-        title: video.title.clone().into(),
-        channel: video.channel.clone().into(),
-        duration: format_duration(video.duration).into(),
-        thumbnail,
-    }
-}
 
 fn parse_provider_mode(value: &str) -> ProviderMode {
     match value {
@@ -97,66 +74,6 @@ async fn fetch_first_page(query: &str, mode: ProviderMode) -> Result<SearchPage,
     }
 }
 
-fn queue_thumbnails(
-    videos: Vec<Video>,
-    generation: u64,
-    weak: slint::Weak<AppWindow>,
-    state: Arc<Mutex<AppState>>,
-    handle: tokio::runtime::Handle,
-) {
-    handle.spawn(async move {
-        stream::iter(videos)
-            .for_each_concurrent(6, |video| {
-                let weak = weak.clone();
-                let state = state.clone();
-
-                async move {
-                    let Some(bytes) = download_thumbnail(&video.thumbnail).await else {
-                        return;
-                    };
-
-                    let video_id = video.id;
-
-                    let _ = weak.upgrade_in_event_loop(move |ui| {
-                        let is_current = state
-                            .lock()
-                            .map(|s| s.search_generation == generation)
-                            .unwrap_or(false);
-
-                        if !is_current {
-                            return;
-                        }
-
-                        let Ok(image) = slint::Image::load_from_data(&bytes, None) else {
-                            return;
-                        };
-
-                        let model = ui.get_videos();
-
-                        // Temukan video berdasarkan ID.
-                        let index = (0..model.row_count()).find(|&index| {
-                            model
-                                .row_data(index)
-                                .is_some_and(|item| item.id.as_str() == video_id)
-                        });
-
-                        let Some(index) = index else {
-                            return;
-                        };
-
-                        if let Some(mut item) = model.row_data(index) {
-                            item.thumbnail = image;
-
-                            // Update hanya satu baris.
-                            model.set_row_data(index, item);
-                        }
-                    });
-                }
-            })
-            .await;
-    });
-}
-
 fn load_history(
     weak: slint::Weak<AppWindow>,
     state: Arc<Mutex<AppState>>,
@@ -167,6 +84,16 @@ fn load_history(
         ui.set_history_status("Loading history...".into());
     }
 
+    let generation = {
+        let mut s = state.lock().unwrap();
+
+        s.history_generation = s.history_generation.wrapping_add(1);
+
+        s.history_generation
+    };
+
+    let handle_for_images = handle.clone();
+
     handle.spawn(async move {
         let result = tokio::task::spawn_blocking(|| get_history(100)).await;
 
@@ -175,6 +102,14 @@ fn load_history(
 
             match result {
                 Ok(Ok(videos)) => {
+                    let is_current = state
+                        .lock()
+                        .map(|s| s.history_generation == generation)
+                        .unwrap_or(false);
+
+                    if !is_current {
+                        return;
+                    }
                     let count = videos.len();
 
                     if let Ok(mut s) = state.lock() {
@@ -187,6 +122,15 @@ fn load_history(
                         .collect::<Vec<_>>();
 
                     ui.set_history_videos(ModelRc::from(Rc::new(VecModel::from(items))));
+
+                    queue_thumbnails(
+                        videos,
+                        ThumbnailTarget::History,
+                        generation,
+                        ui.as_weak(),
+                        state.clone(),
+                        handle_for_images,
+                    );
 
                     ui.set_history_status(format!("{count} videos in history").into());
                 }
@@ -225,6 +169,16 @@ fn refresh_library(
         ui.set_library_status("Loading library...".into());
     }
 
+    let generation = {
+        let mut s = state.lock().unwrap();
+
+        s.library_generation = s.library_generation.wrapping_add(1);
+
+        s.library_generation
+    };
+
+    let handle_for_images = handle.clone();
+
     handle.spawn_blocking(move || {
         let result = (|| {
             let names = get_playlist_names()?;
@@ -239,6 +193,15 @@ fn refresh_library(
         })();
 
         let _ = weak.upgrade_in_event_loop(move |ui| {
+            let is_current = state
+                .lock()
+                .map(|s| s.library_generation == generation)
+                .unwrap_or(false);
+
+            if !is_current {
+                return;
+            }
+
             // Jangan tampilkan hasil request yang sudah tidak relevan.
             if ui.get_library_mode().as_str() != mode
                 || (mode == "playlist" && ui.get_selected_playlist().as_str() != playlist)
@@ -269,6 +232,15 @@ fn refresh_library(
                         .collect::<Vec<_>>();
 
                     ui.set_library_videos(ModelRc::from(Rc::new(VecModel::from(items))));
+
+                    queue_thumbnails(
+                        videos,
+                        ThumbnailTarget::Library,
+                        generation,
+                        ui.as_weak(),
+                        state.clone(),
+                        handle_for_images,
+                    );
 
                     ui.set_library_status(format!("{count} videos").into());
                 }
@@ -406,6 +378,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
                             queue_thumbnails(
                                 videos,
+                                ThumbnailTarget::Search,
                                 generation,
                                 weak_for_images,
                                 state_for_images,
@@ -540,6 +513,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
                             queue_thumbnails(
                                 new_videos,
+                                ThumbnailTarget::Search,
                                 generation,
                                 weak_for_images,
                                 state_for_images,
