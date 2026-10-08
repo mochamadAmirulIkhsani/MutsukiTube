@@ -1,11 +1,13 @@
 import {
     Button,
+    Slider,
     VerticalBox,
     HorizontalBox,
     ComboBox,
 } from "std-widgets.slint";
 
 export component WatchPage inherits Rectangle {
+
     in property <string> video-title;
     in property <string> channel;
     in property <string> video-id;
@@ -13,10 +15,36 @@ export component WatchPage inherits Rectangle {
     in property <[string]> playlists;
     in property <string> library-status: "";
 
+    in property <bool> player-ready: false;
+    in property <bool> player-paused: true;
+
+    in property <float> playback-position: 0;
+    in property <float> playback-duration: 0;
+    in property <float> playback-volume: 70;
+
+    out property <length> video-surface-x:
+        video-surface.absolute-position.x;
+
+    out property <length> video-surface-y:
+        video-surface.absolute-position.y;
+
+    out property <length> video-surface-width:
+        video-surface.width;
+
+    out property <length> video-surface-height:
+        video-surface.height;
+
     callback back();
     callback play(string);
+
     callback toggle-favorite();
     callback add-to-playlist(string);
+
+    callback toggle-playback();
+    callback stop-playback();
+
+    callback seek-playback(float);
+    callback change-volume(float);
 
     background: #0f0f0f;
 
@@ -40,32 +68,162 @@ export component WatchPage inherits Rectangle {
                 color: white;
                 font-size: 22px;
                 font-weight: 700;
+                vertical-alignment: center;
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+                background: transparent;
             }
         }
 
-        Rectangle {
-            height: 430px;
-            background: #050505;
-            border-radius: 10px;
+        video-surface := Rectangle {
+            height: 360px;
+            horizontal-stretch: 1;
 
-            VerticalLayout {
-                alignment: center;
-                spacing: 20px;
+            background: #050505;
+            border-radius: 8px;
+
+            Text {
+                text: root.player-ready
+                    ? ""
+                    : "Video Player";
+
+                color: #777777;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        HorizontalBox {
+            spacing: 12px;
+
+            Button {
+                text: "Play Video";
+                enabled: root.video-id != "";
+
+                clicked => {
+                    root.play(root.video-id);
+                }
+            }
+
+            Text {
+                text: root.player-ready
+                    ? "Embedded libmpv ready"
+                    : "Initializing player...";
+
+                color: #aaaaaa;
+                vertical-alignment: center;
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+                background: transparent;
+            }
+        }
+
+        VerticalBox {
+            spacing: 6px;
+
+            Slider {
+                minimum: 0;
+
+                maximum: root.playback-duration > 0
+                    ? root.playback-duration
+                    : 1;
+
+                value: root.playback-position;
+
+                enabled: root.player-ready
+                    && root.playback-duration > 0;
+
+                released(value) => {
+                    root.seek-playback(value);
+                }
+            }
+
+            HorizontalBox {
+                spacing: 8px;
 
                 Text {
-                    text: "Video Player";
-                    horizontal-alignment: center;
-                    color: #777777;
-                    font-size: 28px;
+                    text: root.playback-position.to-fixed(0)
+                        + "s";
+
+                    color: #aaaaaa;
+                    font-size: 13px;
                 }
 
-                Button {
-                    text: "Play with mpv";
-
-                    clicked => {
-                        root.play(root.video-id);
-                    }
+                Rectangle {
+                    horizontal-stretch: 1;
+                    background: transparent;
                 }
+
+                Text {
+                    text: root.playback-duration.to-fixed(0)
+                        + "s";
+
+                    color: #aaaaaa;
+                    font-size: 13px;
+                }
+            }
+        }
+
+        HorizontalBox {
+            spacing: 12px;
+
+            Button {
+                text: root.player-paused
+                    ? "▶ Play"
+                    : "⏸ Pause";
+
+                enabled: root.player-ready;
+
+                clicked => {
+                    root.toggle-playback();
+                }
+            }
+
+            Button {
+                text: "■ Stop";
+                enabled: root.player-ready;
+
+                clicked => {
+                    root.stop-playback();
+                }
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+                background: transparent;
+            }
+
+            Text {
+                text: "Volume";
+                color: white;
+                vertical-alignment: center;
+            }
+
+            Slider {
+                minimum: 0;
+                maximum: 100;
+                step: 1;
+
+                value: root.playback-volume;
+                enabled: root.player-ready;
+
+                horizontal-stretch: 1;
+
+                changed(value) => {
+                    root.change-volume(value);
+                }
+            }
+
+            Text {
+                text: root.playback-volume.to-fixed(0)
+                    + "%";
+
+                color: #aaaaaa;
+                vertical-alignment: center;
             }
         }
 

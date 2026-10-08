@@ -3144,15 +3144,25 @@ dependencies = [
  "futures",
  "hex",
  "mutsukitube-core",
+ "mutsukitube-embedded-player",
  "mutsukitube-player",
  "mutsukitube-storage",
  "mutsukitube-youtube",
+ "raw-window-handle",
  "reqwest",
  "rusqlite",
  "sha2",
  "slint",
  "slint-build",
  "tokio",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "mutsukitube-embedded-player"
+version = "0.1.0"
+dependencies = [
+ "rsmpv",
 ]
 
 [[package]]
@@ -4603,6 +4613,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "rsmpv"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c43d845c72fe35aba06906f130c10e96665295b7fc948b8246c851c6f5811fec"
+dependencies = [
+ "rsmpv-sys",
+]
+
+[[package]]
+name = "rsmpv-sys"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd7d3d6bf8c3f290a357ef8782b7fd9ce6aa841ceb8a63da239f49e4dc5efc37"
+dependencies = [
+ "pkg-config",
+]
+
+[[package]]
 name = "rspolib"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4995,6 +5023,7 @@ dependencies = [
  "num-traits",
  "once_cell",
  "pin-weak",
+ "raw-window-handle",
  "slint-macros",
  "unicode-segmentation",
  "vtable",

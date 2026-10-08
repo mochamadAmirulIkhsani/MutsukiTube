@@ -1,5 +1,6 @@
 mod app_context;
 mod handlers;
+mod native_window;
 mod state;
 mod thumbnail;
 mod thumbnail_ui;
@@ -10,11 +11,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use mutsukitube_core::Video;
-
-use mutsukitube_storage::{
-    add_to_playlist, get_playlist_names, get_provider_mode, toggle_favorite,
-};
+use mutsukitube_storage::{get_playlist_names, get_provider_mode};
 
 use slint::{ComponentHandle, ModelRc, VecModel};
 
@@ -22,16 +19,40 @@ use state::AppState;
 
 use app_context::AppContext;
 
+#[cfg(target_os = "windows")]
+use std::cell::RefCell;
+
+#[cfg(target_os = "windows")]
+use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+
+#[cfg(target_os = "windows")]
+use native_window::windows::Win32VideoSurface;
+
+#[cfg(target_os = "windows")]
+use native_window::session::NativeVideoSession;
+
+#[cfg(target_os = "windows")]
+mod player_controller;
+
+#[cfg(target_os = "windows")]
+use mutsukitube_player::ExternalMpvPlayer;
+
+#[cfg(target_os = "windows")]
+use native_window::geometry::VideoGeometry;
+
 slint::include_modules!();
 
-fn find_video(state: &AppState, id: &str) -> Option<Video> {
-    state
-        .search_results
-        .iter()
-        .chain(state.history_results.iter())
-        .chain(state.library_results.iter())
-        .find(|video| video.id == id)
-        .cloned()
+#[cfg(target_os = "windows")]
+fn get_slint_hwnd(ui: &AppWindow) -> Option<windows_sys::Win32::Foundation::HWND> {
+    let window = ui.window().window_handle();
+
+    let handle = window.window_handle().ok()?;
+
+    match handle.as_raw() {
+        RawWindowHandle::Win32(win32) => Some(win32.hwnd.get() as *mut std::ffi::c_void),
+
+        _ => None,
+    }
 }
 
 fn main() -> Result<(), slint::PlatformError> {
@@ -67,113 +88,6 @@ fn main() -> Result<(), slint::PlatformError> {
 
     ui.set_videos(ModelRc::from(video_model));
 
-    // ========================================
-    // TOGGLE FAVORITE
-    // ========================================
-    {
-        let weak = ui.as_weak();
-        let state = state.clone();
-        let handle = tokio_handle.clone();
-
-        ui.on_toggle_favorite(move || {
-            let Some(ui) = weak.upgrade() else {
-                return;
-            };
-
-            let video_id = ui.get_selected_video_id().to_string();
-
-            let video = state.lock().ok().and_then(|s| find_video(&s, &video_id));
-
-            let Some(video) = video else {
-                ui.set_watch_library_status("Video not found".into());
-                return;
-            };
-
-            ui.set_watch_library_status("Saving favorite...".into());
-
-            let weak = weak.clone();
-
-            handle.spawn_blocking(move || {
-                let result = toggle_favorite(&video);
-
-                let _ = weak.upgrade_in_event_loop(move |ui| {
-                    if ui.get_selected_video_id().as_str() != video_id {
-                        return;
-                    }
-
-                    match result {
-                        Ok(true) => {
-                            ui.set_watch_library_status("Added to Favorites".into());
-                        }
-
-                        Ok(false) => {
-                            ui.set_watch_library_status("Removed from Favorites".into());
-                        }
-
-                        Err(error) => {
-                            ui.set_watch_library_status(format!("Favorite error: {error}").into());
-                        }
-                    }
-                });
-            });
-        });
-    }
-
-    // ========================================
-    // ADD VIDEO TO PLAYLIST
-    // ========================================
-    {
-        let weak = ui.as_weak();
-        let state = state.clone();
-        let handle = tokio_handle.clone();
-
-        ui.on_add_to_playlist(move |name| {
-            let playlist_name = name.to_string();
-
-            let Some(ui) = weak.upgrade() else {
-                return;
-            };
-
-            if playlist_name.is_empty() {
-                ui.set_watch_library_status("Select a playlist first".into());
-                return;
-            }
-
-            let video_id = ui.get_selected_video_id().to_string();
-
-            let video = state.lock().ok().and_then(|s| find_video(&s, &video_id));
-
-            let Some(video) = video else {
-                ui.set_watch_library_status("Video not found".into());
-                return;
-            };
-
-            ui.set_watch_library_status("Adding to playlist...".into());
-
-            let weak = weak.clone();
-
-            handle.spawn_blocking(move || {
-                let result = add_to_playlist(&playlist_name, &video);
-
-                let _ = weak.upgrade_in_event_loop(move |ui| {
-                    if ui.get_selected_video_id().as_str() != video_id {
-                        return;
-                    }
-
-                    match result {
-                        Ok(()) => {
-                            ui.set_watch_library_status("Video saved to playlist".into());
-                        }
-
-                        Err(error) => {
-                            ui.set_watch_library_status(format!("Playlist error: {error}").into());
-                        }
-                    }
-                });
-            });
-        });
-    }
-
     match get_playlist_names() {
         Ok(names) => {
             let items = names
@@ -189,15 +103,234 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     }
 
+    #[cfg(target_os = "windows")]
+    let native_session = Rc::new(RefCell::new(NativeVideoSession::new()));
+
+    #[cfg(target_os = "windows")]
+    handlers::player::register(&ui, &context, native_session.clone());
+
+    #[cfg(not(target_os = "windows"))]
     handlers::player::register(&ui, &context);
 
+    #[cfg(target_os = "windows")]
+    handlers::player_controls::register(&ui, native_session.clone());
+
     handlers::history::register(&ui, &context);
-
     handlers::settings::register(&ui, &context);
-
     handlers::library::register(&ui, &context);
-
     handlers::search::register(&ui, &context);
 
-    ui.run()
+    #[cfg(target_os = "windows")]
+    let surface_timer = {
+        use std::time::Duration;
+
+        let weak = ui.as_weak();
+
+        let session_for_timer = native_session.clone();
+
+        let timer = slint::Timer::default();
+
+        let last_geometry = std::cell::Cell::new(None::<VideoGeometry>);
+
+        timer.start(
+            slint::TimerMode::Repeated,
+            Duration::from_millis(200),
+            move || {
+                let Some(ui) = weak.upgrade() else {
+                    return;
+                };
+
+                let is_watch = ui.get_current_page().as_str() == "watch";
+
+                let mut session = session_for_timer.borrow_mut();
+                session.controller.poll_events();
+
+                let ready = session.controller.is_initialized();
+
+                ui.set_player_ready(ready);
+
+                if ready {
+                    let position = session.controller.position().unwrap_or(0.0);
+
+                    let duration = session.controller.duration().unwrap_or(0.0);
+
+                    let paused = session.controller.is_paused().unwrap_or(true);
+
+                    if position.is_finite() && position >= 0.0 {
+                        ui.set_playback_position(position as f32);
+                    }
+
+                    if duration.is_finite() && duration >= 0.0 {
+                        ui.set_playback_duration(duration as f32);
+                    }
+
+                    ui.set_player_paused(paused);
+                }
+
+                session.controller.on_navigation(is_watch);
+
+                if !is_watch {
+                    session.pending_video_id = None;
+
+                    if let Some(surface) = session.surface.as_ref() {
+                        surface.hide();
+                    }
+
+                    ui.set_player_paused(true);
+                    ui.set_playback_position(0.0);
+                    ui.set_playback_duration(0.0);
+
+                    last_geometry.set(None);
+
+                    return;
+                }
+
+                if session.surface.is_none() {
+                    let Some(parent) = get_slint_hwnd(&ui) else {
+                        return;
+                    };
+
+                    match Win32VideoSurface::new(parent) {
+                        Ok(surface) => {
+                            println!("[MutsukiTube] Child HWND created");
+
+                            session.surface = Some(surface);
+                        }
+
+                        Err(error) => {
+                            eprintln!("[MutsukiTube] Surface error: {error}");
+
+                            return;
+                        }
+                    }
+                }
+
+                // ========================================
+                // RESPONSIVE NATIVE VIDEO SURFACE
+                // ========================================
+
+                let geometry = VideoGeometry::from_slint(&ui);
+
+                if let Some(surface) = session.surface.as_ref() {
+                    match geometry {
+                        Some(rect) => {
+                            // Update HWND hanya jika geometry berubah.
+                            if last_geometry.get() != Some(rect) {
+                                match surface.set_geometry(rect.x, rect.y, rect.width, rect.height)
+                                {
+                                    Ok(()) => {
+                                        last_geometry.set(Some(rect));
+
+                                        println!(
+                                            "[MutsukiTube] Video surface: \
+                             {}x{} at ({}, {})",
+                                            rect.width, rect.height, rect.x, rect.y,
+                                        );
+                                    }
+
+                                    Err(error) => {
+                                        eprintln!("[MutsukiTube] Geometry error: {error}");
+                                    }
+                                }
+                            }
+
+                            surface.show();
+                        }
+
+                        None => {
+                            surface.hide();
+                            last_geometry.set(None);
+
+                            // Layout belum memiliki area valid.
+                            return;
+                        }
+                    }
+                }
+
+                if !session.controller.is_initialized() {
+                    let hwnd = match session.surface.as_ref() {
+                        Some(surface) => surface.hwnd() as usize,
+                        None => return,
+                    };
+
+                    match session.controller.initialize(hwnd) {
+                        Ok(()) => {
+                            println!("[MutsukiTube] Embedded player ready");
+
+                            let initial_volume = ui.get_playback_volume() as f64;
+
+                            if let Err(error) = session.controller.set_volume(initial_volume) {
+                                eprintln!("[MutsukiTube] Initial volume error: {error}");
+                            }
+
+                            ui.set_player_ready(true);
+                        }
+
+                        Err(error) => {
+                            eprintln!("[MutsukiTube] Player init error: {error}");
+
+                            ui.set_player_ready(false);
+
+                            if let Some(video_id) = session.pending_video_id.take() {
+                                if let Err(fallback_error) =
+                                    ExternalMpvPlayer::play_youtube(&video_id)
+                                {
+                                    eprintln!("[MutsukiTube] Fallback error: {fallback_error}");
+                                }
+                            }
+
+                            return;
+                        }
+                    }
+                }
+
+                let Some(video_id) = session.pending_video_id.take() else {
+                    return;
+                };
+
+                let url = format!("https://www.youtube.com/watch?v={video_id}");
+
+                match session.controller.load_video(&url) {
+                    Ok(()) => {
+                        if let Err(error) = session.controller.play() {
+                            eprintln!("[MutsukiTube] Play error: {error}");
+                        }
+
+                        println!(
+                            "[MutsukiTube] Embedded video requested: \
+                         {video_id}"
+                        );
+                    }
+
+                    Err(error) => {
+                        eprintln!("[MutsukiTube] Embedded load error: {error}");
+
+                        if let Err(fallback_error) = ExternalMpvPlayer::play_youtube(&video_id) {
+                            eprintln!(
+                                "[MutsukiTube] Fallback error: \
+                             {fallback_error}"
+                            );
+                        }
+                    }
+                }
+            },
+        );
+
+        timer
+    };
+
+    #[cfg(target_os = "windows")]
+    ui.show()?;
+
+    let result = ui.run();
+
+    #[cfg(target_os = "windows")]
+    {
+        surface_timer.stop();
+
+        // Hentikan controller dan bebaskan HWND.
+        native_session.borrow_mut().shutdown();
+    }
+
+    result
 }
