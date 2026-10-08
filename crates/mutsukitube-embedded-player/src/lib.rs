@@ -1,0 +1,77 @@
+use rsmpv::Mpv;
+
+pub struct EmbeddedMpvPlayer {
+    mpv: Mpv,
+}
+
+impl EmbeddedMpvPlayer {
+    pub fn new_headless() -> Result<Self, String> {
+        let mpv = Mpv::builder()
+            .map_err(|error| error.to_string())?
+            .set_property("vo", "null")
+            .map_err(|error| error.to_string())?
+            .set_property("ao", "null")
+            .map_err(|error| error.to_string())?
+            .build()
+            .map_err(|error| error.to_string())?;
+
+        Ok(Self { mpv })
+    }
+
+    pub fn load(&self, url: &str) -> Result<(), String> {
+        self.mpv
+            .command(&["loadfile", url, "replace"])
+            .map_err(|error| error.to_string())
+    }
+
+    pub fn play(&self) -> Result<(), String> {
+        self.mpv
+            .set_property("pause", false)
+            .map_err(|error| error.to_string())
+    }
+
+    pub fn pause(&self) -> Result<(), String> {
+        self.mpv
+            .set_property("pause", true)
+            .map_err(|error| error.to_string())
+    }
+
+    pub fn stop(&self) -> Result<(), String> {
+        self.mpv
+            .command(&["stop"])
+            .map_err(|error| error.to_string())
+    }
+
+    pub fn seek(&self, seconds: f64) -> Result<(), String> {
+        self.mpv
+            .command(&["seek", &seconds.to_string(), "absolute"])
+            .map_err(|error| error.to_string())
+    }
+
+    pub fn set_volume(&self, volume: f64) -> Result<(), String> {
+        self.mpv
+            .set_property("volume", volume.clamp(0.0, 100.0))
+            .map_err(|error| error.to_string())
+    }
+
+    pub fn new_for_hwnd(hwnd: usize) -> Result<Self, String> {
+        if hwnd == 0 {
+            return Err("Invalid HWND".into());
+        }
+
+        let window_id = (hwnd as u32).to_string();
+
+        let mpv = Mpv::builder()
+            .map_err(|error| error.to_string())?
+            .set_property("wid", window_id)
+            .map_err(|error| error.to_string())?
+            .set_property("hwdec", "auto-safe")
+            .map_err(|error| error.to_string())?
+            .set_property("force-window", "yes")
+            .map_err(|error| error.to_string())?
+            .build()
+            .map_err(|error| error.to_string())?;
+
+        Ok(Self { mpv })
+    }
+}
