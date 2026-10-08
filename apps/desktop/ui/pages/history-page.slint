@@ -1,0 +1,75 @@
+import {
+    Button,
+    VerticalBox,
+    HorizontalBox,
+    ScrollView,
+} from "std-widgets.slint";
+
+import {
+    VideoCard,
+    VideoItem,
+} from "../components/video-card.slint";
+
+export component HistoryPage inherits Rectangle {
+    in property <[VideoItem]> videos;
+    in property <bool> loading;
+    in property <string> status-text;
+
+    callback back();
+    callback open-video(string);
+    callback refresh();
+
+    background: #0f0f0f;
+
+    VerticalBox {
+        padding: 20px;
+        spacing: 15px;
+
+        HorizontalBox {
+            spacing: 10px;
+
+            Button {
+                text: "Back";
+
+                clicked => {
+                    root.back();
+                }
+            }
+
+            Text {
+                text: "Watch History";
+                color: white;
+                font-size: 24px;
+                font-weight: 700;
+            }
+
+            Button {
+                text: "Refresh";
+                enabled: !root.loading;
+
+                clicked => {
+                    root.refresh();
+                }
+            }
+        }
+
+        if root.status-text != "": Text {
+            text: root.status-text;
+            color: #aaaaaa;
+        }
+
+        ScrollView {
+            VerticalLayout {
+                spacing: 8px;
+
+                for video in root.videos: VideoCard {
+                    video: video;
+
+                    clicked(id) => {
+                        root.open-video(id);
+                    }
+                }
+            }
+        }
+    }
+}
