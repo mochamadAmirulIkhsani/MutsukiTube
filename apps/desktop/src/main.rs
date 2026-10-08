@@ -13,8 +13,7 @@ use std::{
 use mutsukitube_core::{ProviderError, Video, VideoProvider};
 
 use mutsukitube_storage::{
-    add_to_playlist, create_playlist, get_favorites, get_playlist_names, get_playlist_videos,
-    get_provider_mode, toggle_favorite,
+    add_to_playlist, get_playlist_names, get_provider_mode, toggle_favorite,
 };
 
 use mutsukitube_youtube::{NativeYoutubeProvider, ProviderMode, SearchPage, YtDlpProvider};
@@ -22,8 +21,6 @@ use mutsukitube_youtube::{NativeYoutubeProvider, ProviderMode, SearchPage, YtDlp
 use slint::{ComponentHandle, Model, ModelRc, VecModel};
 
 use state::AppState;
-
-use rusqlite;
 
 use ui_models::video_to_ui;
 
@@ -84,102 +81,6 @@ fn find_video(state: &AppState, id: &str) -> Option<Video> {
         .chain(state.library_results.iter())
         .find(|video| video.id == id)
         .cloned()
-}
-
-fn refresh_library(
-    weak: slint::Weak<AppWindow>,
-    state: Arc<Mutex<AppState>>,
-    handle: tokio::runtime::Handle,
-    mode: String,
-    playlist: String,
-) {
-    if let Some(ui) = weak.upgrade() {
-        ui.set_library_loading(true);
-        ui.set_library_status("Loading library...".into());
-    }
-
-    let generation = {
-        let mut s = state.lock().unwrap();
-
-        s.library_generation = s.library_generation.wrapping_add(1);
-
-        s.library_generation
-    };
-
-    let handle_for_images = handle.clone();
-
-    handle.spawn_blocking(move || {
-        let result = (|| {
-            let names = get_playlist_names()?;
-
-            let videos = if mode == "favorites" {
-                get_favorites()?
-            } else {
-                get_playlist_videos(&playlist)?
-            };
-
-            Ok::<_, rusqlite::Error>((names, videos))
-        })();
-
-        let _ = weak.upgrade_in_event_loop(move |ui| {
-            let is_current = state
-                .lock()
-                .map(|s| s.library_generation == generation)
-                .unwrap_or(false);
-
-            if !is_current {
-                return;
-            }
-
-            // Jangan tampilkan hasil request yang sudah tidak relevan.
-            if ui.get_library_mode().as_str() != mode
-                || (mode == "playlist" && ui.get_selected_playlist().as_str() != playlist)
-            {
-                return;
-            }
-
-            ui.set_library_loading(false);
-
-            match result {
-                Ok((names, videos)) => {
-                    let names = names
-                        .into_iter()
-                        .map(slint::SharedString::from)
-                        .collect::<Vec<_>>();
-
-                    ui.set_playlist_names(ModelRc::from(Rc::new(VecModel::from(names))));
-
-                    let count = videos.len();
-
-                    if let Ok(mut s) = state.lock() {
-                        s.library_results = videos.clone();
-                    }
-
-                    let items = videos
-                        .iter()
-                        .map(|video| video_to_ui(video, slint::Image::default()))
-                        .collect::<Vec<_>>();
-
-                    ui.set_library_videos(ModelRc::from(Rc::new(VecModel::from(items))));
-
-                    queue_thumbnails(
-                        videos,
-                        ThumbnailTarget::Library,
-                        generation,
-                        ui.as_weak(),
-                        state.clone(),
-                        handle_for_images,
-                    );
-
-                    ui.set_library_status(format!("{count} videos").into());
-                }
-
-                Err(error) => {
-                    ui.set_library_status(format!("Library error: {error}").into());
-                }
-            }
-        });
-    });
 }
 
 fn main() -> Result<(), slint::PlatformError> {
@@ -476,111 +377,6 @@ fn main() -> Result<(), slint::PlatformError> {
     }
 
     // ========================================
-    // OPEN LIBRARY
-    // ========================================
-    {
-        let weak = ui.as_weak();
-        let state = state.clone();
-        let handle = tokio_handle.clone();
-
-        ui.on_show_library(move || {
-            refresh_library(
-                weak.clone(),
-                state.clone(),
-                handle.clone(),
-                "favorites".to_string(),
-                String::new(),
-            );
-        });
-    }
-
-    // ========================================
-    // REFRESH LIBRARY
-    // ========================================
-    {
-        let weak = ui.as_weak();
-        let state = state.clone();
-        let handle = tokio_handle.clone();
-
-        ui.on_refresh_library(move || {
-            let Some(ui) = weak.upgrade() else {
-                return;
-            };
-
-            let mode = ui.get_library_mode().to_string();
-            let playlist = ui.get_selected_playlist().to_string();
-
-            refresh_library(weak.clone(), state.clone(), handle.clone(), mode, playlist);
-        });
-    }
-
-    // ========================================
-    // SELECT PLAYLIST
-    // ========================================
-    {
-        let weak = ui.as_weak();
-        let state = state.clone();
-        let handle = tokio_handle.clone();
-
-        ui.on_select_playlist(move |name| {
-            refresh_library(
-                weak.clone(),
-                state.clone(),
-                handle.clone(),
-                "playlist".to_string(),
-                name.to_string(),
-            );
-        });
-    }
-
-    // ========================================
-    // CREATE PLAYLIST
-    // ========================================
-    {
-        let weak = ui.as_weak();
-        let state = state.clone();
-        let handle = tokio_handle.clone();
-
-        ui.on_create_playlist(move |name| {
-            let name = name.trim().to_string();
-
-            if name.is_empty() {
-                if let Some(ui) = weak.upgrade() {
-                    ui.set_library_status("Playlist name cannot be empty".into());
-                }
-                return;
-            }
-
-            let weak = weak.clone();
-            let state = state.clone();
-            let handle_for_refresh = handle.clone();
-
-            handle.spawn_blocking(move || {
-                let result = create_playlist(&name);
-
-                let _ = weak.upgrade_in_event_loop(move |ui| match result {
-                    Ok(()) => {
-                        ui.set_library_mode("playlist".into());
-                        ui.set_selected_playlist(name.clone().into());
-
-                        refresh_library(
-                            ui.as_weak(),
-                            state,
-                            handle_for_refresh,
-                            "playlist".to_string(),
-                            name,
-                        );
-                    }
-
-                    Err(error) => {
-                        ui.set_library_status(format!("Failed to create playlist: {error}").into());
-                    }
-                });
-            });
-        });
-    }
-
-    // ========================================
     // TOGGLE FAVORITE
     // ========================================
     {
@@ -707,6 +503,8 @@ fn main() -> Result<(), slint::PlatformError> {
     handlers::history::register(&ui, &context);
 
     handlers::settings::register(&ui, &context);
+
+    handlers::library::register(&ui, &context);
 
     ui.run()
 }
