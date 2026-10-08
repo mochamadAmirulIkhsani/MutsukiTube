@@ -13,8 +13,8 @@ use std::{
 use mutsukitube_core::{ProviderError, Video, VideoProvider};
 
 use mutsukitube_storage::{
-    add_to_playlist, create_playlist, get_favorites, get_history, get_playlist_names,
-    get_playlist_videos, get_provider_mode, set_provider_mode, toggle_favorite,
+    add_to_playlist, create_playlist, get_favorites, get_playlist_names, get_playlist_videos,
+    get_provider_mode, toggle_favorite,
 };
 
 use mutsukitube_youtube::{NativeYoutubeProvider, ProviderMode, SearchPage, YtDlpProvider};
@@ -74,79 +74,6 @@ async fn fetch_first_page(query: &str, mode: ProviderMode) -> Result<SearchPage,
             }
         },
     }
-}
-
-fn load_history(
-    weak: slint::Weak<AppWindow>,
-    state: Arc<Mutex<AppState>>,
-    handle: tokio::runtime::Handle,
-) {
-    if let Some(ui) = weak.upgrade() {
-        ui.set_history_loading(true);
-        ui.set_history_status("Loading history...".into());
-    }
-
-    let generation = {
-        let mut s = state.lock().unwrap();
-
-        s.history_generation = s.history_generation.wrapping_add(1);
-
-        s.history_generation
-    };
-
-    let handle_for_images = handle.clone();
-
-    handle.spawn(async move {
-        let result = tokio::task::spawn_blocking(|| get_history(100)).await;
-
-        let _ = weak.upgrade_in_event_loop(move |ui| {
-            ui.set_history_loading(false);
-
-            match result {
-                Ok(Ok(videos)) => {
-                    let is_current = state
-                        .lock()
-                        .map(|s| s.history_generation == generation)
-                        .unwrap_or(false);
-
-                    if !is_current {
-                        return;
-                    }
-                    let count = videos.len();
-
-                    if let Ok(mut s) = state.lock() {
-                        s.history_results = videos.clone();
-                    }
-
-                    let items = videos
-                        .iter()
-                        .map(|video| video_to_ui(video, slint::Image::default()))
-                        .collect::<Vec<_>>();
-
-                    ui.set_history_videos(ModelRc::from(Rc::new(VecModel::from(items))));
-
-                    queue_thumbnails(
-                        videos,
-                        ThumbnailTarget::History,
-                        generation,
-                        ui.as_weak(),
-                        state.clone(),
-                        handle_for_images,
-                    );
-
-                    ui.set_history_status(format!("{count} videos in history").into());
-                }
-
-                Ok(Err(error)) => {
-                    ui.set_history_status(format!("Database error: {error}").into());
-                }
-
-                Err(error) => {
-                    ui.set_history_status(format!("History task failed: {error}").into());
-                }
-            }
-        });
-    });
 }
 
 fn find_video(state: &AppState, id: &str) -> Option<Video> {
@@ -549,95 +476,6 @@ fn main() -> Result<(), slint::PlatformError> {
     }
 
     // ========================================
-    // SHOW HISTORY
-    // ========================================
-    {
-        let weak = ui.as_weak();
-        let state = state.clone();
-        let handle = tokio_handle.clone();
-
-        ui.on_show_history(move || {
-            load_history(weak.clone(), state.clone(), handle.clone());
-        });
-    }
-
-    // ========================================
-    // REFRESH HISTORY
-    // ========================================
-    {
-        let weak = ui.as_weak();
-        let state = state.clone();
-        let handle = tokio_handle.clone();
-
-        ui.on_refresh_history(move || {
-            load_history(weak.clone(), state.clone(), handle.clone());
-        });
-    }
-
-    // ========================================
-    // SAVE SETTINGS
-    // ========================================
-    {
-        let weak = ui.as_weak();
-        let state = state.clone();
-        let handle = tokio_handle.clone();
-
-        ui.on_save_provider(move |mode| {
-            let mode = mode.to_string();
-
-            if !matches!(mode.as_str(), "auto" | "native" | "ytdlp") {
-                if let Some(ui) = weak.upgrade() {
-                    ui.set_settings_status("Invalid provider mode".into());
-                }
-
-                return;
-            }
-
-            if let Some(ui) = weak.upgrade() {
-                ui.set_settings_status("Saving settings...".into());
-            }
-
-            let weak = weak.clone();
-            let state = state.clone();
-
-            handle.spawn_blocking(move || {
-                let result = set_provider_mode(&mode);
-
-                let _ = weak.upgrade_in_event_loop(move |ui| {
-                    match result {
-                        Ok(()) => {
-                            if let Ok(mut s) = state.lock() {
-                                s.provider_mode = mode.clone();
-
-                                // Batalkan hasil request lama
-                                // setelah provider berganti.
-                                s.search_generation = s.search_generation.wrapping_add(1);
-
-                                s.loading_more = false;
-                                s.continuation_token = None;
-                            }
-
-                            ui.set_provider_mode(mode.into());
-
-                            ui.set_loading(false);
-                            ui.set_loading_more(false);
-                            ui.set_has_more(false);
-
-                            ui.set_settings_status("Settings saved successfully".into());
-                        }
-
-                        Err(error) => {
-                            ui.set_settings_status(
-                                format!("Failed to save settings: {error}").into(),
-                            );
-                        }
-                    }
-                });
-            });
-        });
-    }
-
-    // ========================================
     // OPEN LIBRARY
     // ========================================
     {
@@ -865,6 +703,10 @@ fn main() -> Result<(), slint::PlatformError> {
     }
 
     handlers::player::register(&ui, &context);
+
+    handlers::history::register(&ui, &context);
+
+    handlers::settings::register(&ui, &context);
 
     ui.run()
 }
