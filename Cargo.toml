@@ -1,0 +1,9 @@
+[workspace]
+resolver = "2"
+
+members = [
+  "crates/mutsukitube-core",
+  "crates/mutsukitube-youtube",
+  "crates/mutsukitube-player",
+  "apps/desktop",
+]

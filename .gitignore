@@ -1,0 +1,23 @@
+# Rust build artifacts
+/target/
+
+# Generated binaries and profiling data
+*.pdb
+*.dSYM/
+*.profraw
+
+# IDE and editor files
+.idea/
+.vscode/
+*.code-workspace
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
