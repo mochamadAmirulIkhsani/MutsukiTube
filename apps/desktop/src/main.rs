@@ -12,6 +12,8 @@ use mutsukitube_core::{ProviderError, Video, VideoProvider};
 
 use mutsukitube_player::ExternalMpvPlayer;
 
+use mutsukitube_storage::{get_history, save_video};
+
 use mutsukitube_youtube::{NativeYoutubeProvider, ProviderMode, SearchPage, YtDlpProvider};
 
 use slint::{ComponentHandle, Model, ModelRc, VecModel};
@@ -141,6 +143,52 @@ fn queue_thumbnails(
                 }
             })
             .await;
+    });
+}
+
+fn load_history(
+    weak: slint::Weak<AppWindow>,
+    state: Arc<Mutex<AppState>>,
+    handle: tokio::runtime::Handle,
+) {
+    if let Some(ui) = weak.upgrade() {
+        ui.set_history_loading(true);
+        ui.set_history_status("Loading history...".into());
+    }
+
+    handle.spawn(async move {
+        let result = tokio::task::spawn_blocking(|| get_history(100)).await;
+
+        let _ = weak.upgrade_in_event_loop(move |ui| {
+            ui.set_history_loading(false);
+
+            match result {
+                Ok(Ok(videos)) => {
+                    let count = videos.len();
+
+                    if let Ok(mut s) = state.lock() {
+                        s.history_results = videos.clone();
+                    }
+
+                    let items = videos
+                        .iter()
+                        .map(|video| video_to_ui(video, slint::Image::default()))
+                        .collect::<Vec<_>>();
+
+                    ui.set_history_videos(ModelRc::from(Rc::new(VecModel::from(items))));
+
+                    ui.set_history_status(format!("{count} videos in history").into());
+                }
+
+                Ok(Err(error)) => {
+                    ui.set_history_status(format!("Database error: {error}").into());
+                }
+
+                Err(error) => {
+                    ui.set_history_status(format!("History task failed: {error}").into());
+                }
+            }
+        });
     });
 }
 
@@ -414,16 +462,18 @@ fn main() -> Result<(), slint::PlatformError> {
     }
 
     // ========================================
-    // OPEN VIDEO
+    // OPEN VIDEO + SAVE HISTORY
     // ========================================
     {
         let weak = ui.as_weak();
         let state = state.clone();
+        let handle = tokio_handle.clone();
 
         ui.on_open_video(move |video_id| {
             let video = state.lock().ok().and_then(|s| {
                 s.search_results
                     .iter()
+                    .chain(s.history_results.iter())
                     .find(|video| video.id == video_id.as_str())
                     .cloned()
             });
@@ -433,11 +483,21 @@ fn main() -> Result<(), slint::PlatformError> {
             };
 
             if let Some(ui) = weak.upgrade() {
-                ui.set_selected_video_id(video.id.into());
-                ui.set_selected_video_title(video.title.into());
-                ui.set_selected_video_channel(video.channel.into());
+                ui.set_selected_video_id(video.id.clone().into());
+
+                ui.set_selected_video_title(video.title.clone().into());
+
+                ui.set_selected_video_channel(video.channel.clone().into());
+
                 ui.set_current_page("watch".into());
             }
+
+            // Menyimpan metadata video secara asynchronous.
+            handle.spawn_blocking(move || {
+                if let Err(error) = save_video(&video) {
+                    eprintln!("[MutsukiTube] Failed to save history: {error}");
+                }
+            });
         });
     }
 
@@ -449,6 +509,32 @@ fn main() -> Result<(), slint::PlatformError> {
             eprintln!("Player error: {error}");
         }
     });
+
+    // ========================================
+    // SHOW HISTORY
+    // ========================================
+    {
+        let weak = ui.as_weak();
+        let state = state.clone();
+        let handle = tokio_handle.clone();
+
+        ui.on_show_history(move || {
+            load_history(weak.clone(), state.clone(), handle.clone());
+        });
+    }
+
+    // ========================================
+    // REFRESH HISTORY
+    // ========================================
+    {
+        let weak = ui.as_weak();
+        let state = state.clone();
+        let handle = tokio_handle.clone();
+
+        ui.on_refresh_history(move || {
+            load_history(weak.clone(), state.clone(), handle.clone());
+        });
+    }
 
     ui.run()
 }

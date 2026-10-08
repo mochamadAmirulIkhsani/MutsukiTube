@@ -4,6 +4,8 @@ use mutsukitube_core::Video;
 pub struct AppState {
     pub search_results: Vec<Video>,
 
+    pub history_results: Vec<Video>,
+
     pub current_query: String,
 
     pub continuation_token: Option<String>,

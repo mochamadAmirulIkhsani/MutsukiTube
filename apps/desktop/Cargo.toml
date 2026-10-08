@@ -11,6 +11,8 @@ mutsukitube-youtube = {path = "../../crates/mutsukitube-youtube"}
 
 mutsukitube-player = {path = "../../crates/mutsukitube-player"}
 
+mutsukitube-storage = {path = "../../crates/mutsukitube-storage"}
+
 slint = {version = "1.18.1", features = [ "image-default-formats"]}
 
 tokio = {version = "1", features = [ "rt-multi-thread", "fs"]}
