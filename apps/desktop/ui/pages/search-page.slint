@@ -1,27 +1,30 @@
+
 import {
     Button,
     LineEdit,
     VerticalBox,
     HorizontalBox,
     ScrollView,
-    Spinner
+    Spinner,
 } from "std-widgets.slint";
 
 import {
     VideoCard,
-    VideoItem
+    VideoItem,
 } from "../components/video-card.slint";
 
 export component SearchPage inherits Rectangle {
+
     in property <[VideoItem]> videos;
-    in property <bool> loading;
-    in property <bool> loading-more;
-    in property <bool> has-more;
-    in property <string> status-text;
+    in property <bool> loading: false;
+    in property <bool> loading-more: false;
+    in property <bool> has-more: false;
+    in property <string> status-text: "";
 
     callback search(string);
     callback open-video(string);
     callback load-more();
+    callback show-history();
 
     background: #0f0f0f;
 
@@ -29,11 +32,27 @@ export component SearchPage inherits Rectangle {
         padding: 20px;
         spacing: 15px;
 
-        Text {
-            text: "MutsukiTube";
-            color: white;
-            font-size: 27px;
-            font-weight: 700;
+        HorizontalBox {
+            spacing: 12px;
+            alignment: center;
+
+            Text {
+                text: "MutsukiTube";
+                color: #ffffff;
+                font-size: 27px;
+                font-weight: 700;
+                horizontal-alignment: left;
+                vertical-alignment: center;
+            }
+
+            Button {
+                text: "History";
+                max-width: 110px;
+
+                clicked => {
+                    root.show-history();
+                }
+            }
         }
 
         HorizontalBox {
@@ -57,7 +76,7 @@ export component SearchPage inherits Rectangle {
             }
         }
 
-        if root.loading : HorizontalBox {
+        if root.loading: HorizontalBox {
             spacing: 8px;
 
             Spinner {
@@ -68,19 +87,21 @@ export component SearchPage inherits Rectangle {
             Text {
                 text: "Searching...";
                 color: #aaaaaa;
+                vertical-alignment: center;
             }
         }
 
-        if root.status-text != "" : Text {
+        if root.status-text != "": Text {
             text: root.status-text;
             color: #999999;
+            font-size: 13px;
         }
 
         ScrollView {
             VerticalLayout {
                 spacing: 8px;
 
-                for video in root.videos : VideoCard {
+                for video in root.videos: VideoCard {
                     video: video;
 
                     clicked(id) => {
@@ -88,7 +109,7 @@ export component SearchPage inherits Rectangle {
                     }
                 }
 
-                if root.has-more : Button {
+                if root.has-more: Button {
                     text: root.loading-more
                         ? "Loading more..."
                         : "Load More Videos";
