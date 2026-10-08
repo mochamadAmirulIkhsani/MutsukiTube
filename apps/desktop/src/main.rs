@@ -35,6 +35,9 @@ use native_window::windows::Win32VideoSurface;
 #[cfg(target_os = "windows")]
 use native_window::session::NativeVideoSession;
 
+#[cfg(target_os = "windows")]
+mod player_controller;
+
 slint::include_modules!();
 
 fn find_video(state: &AppState, id: &str) -> Option<Video> {
@@ -231,15 +234,9 @@ fn main() -> Result<(), slint::PlatformError> {
 
         let weak = ui.as_weak();
 
-        use std::cell::Cell;
-
-        let paused_for_navigation = Cell::new(false);
-
         let session = Rc::new(RefCell::new(NativeVideoSession::new()));
 
         let session_for_timer = session.clone();
-
-        let test_video = std::env::var("MUTSUKITUBE_TEST_VIDEO").ok();
 
         let timer = slint::Timer::default();
 
@@ -255,9 +252,15 @@ fn main() -> Result<(), slint::PlatformError> {
 
                 let mut session = session_for_timer.borrow_mut();
 
-                // ======================================
-                // CREATE NATIVE VIDEO SURFACE
-                // ======================================
+                // =====================================
+                // NAVIGATION
+                // =====================================
+
+                session.controller.on_navigation(is_watch);
+
+                // =====================================
+                // CREATE SURFACE
+                // =====================================
 
                 if is_watch && session.surface.is_none() {
                     let Some(parent) = get_slint_hwnd(&ui) else {
@@ -273,137 +276,46 @@ fn main() -> Result<(), slint::PlatformError> {
 
                         Err(error) => {
                             eprintln!("[MutsukiTube] Surface error: {error}");
-
                             return;
                         }
                     }
                 }
 
-                // ======================================
-                // UPDATE SURFACE
-                // ======================================
+                // =====================================
+                // SURFACE VISIBILITY
+                // =====================================
 
                 if let Some(surface) = session.surface.as_ref() {
-                    if is_watch {
-                        if let Some(surface) = session.surface.as_ref() {
-                            if is_watch {
-                                if let Err(error) = surface.set_geometry(24, 100, 640, 360) {
-                                    eprintln!("[MutsukiTube] Geometry error: {error}");
-                                }
-
-                                surface.show();
-                            } else {
-                                surface.hide();
-                                if !paused_for_navigation.get() {
-                                    if let Some(player) = session.player.as_ref() {
-                                        match player.pause() {
-                                            Ok(()) => {
-                                                paused_for_navigation.set(true);
-
-                                                println!(
-                                                    "[MutsukiTube] Playback paused: \
-                                                    leaving WatchPage"
-                                                );
-                                            }
-
-                                            Err(error) => {
-                                                eprintln!("[MutsukiTube] Pause error: {error}");
-                                            }
-                                        }
-                                    }
-                                }
-
-                                return;
-                            }
-                        }
-
-                        surface.show();
-                    } else {
+                    if !is_watch {
                         surface.hide();
                         return;
                     }
+
+                    if let Err(error) = surface.set_geometry(24, 100, 640, 360) {
+                        eprintln!("[MutsukiTube] Geometry error: {error}");
+                    }
+
+                    surface.show();
                 }
 
-                // ======================================
-                // INITIALIZE LIBMPV
-                // ======================================
+                // =====================================
+                // INITIALIZE EMBEDDED PLAYER
+                // =====================================
 
-                if is_watch && session.player.is_none() {
+                if is_watch && !session.controller.is_initialized() {
                     let Some(surface) = session.surface.as_ref() else {
                         return;
                     };
 
                     let hwnd = surface.hwnd() as usize;
 
-                    match mutsukitube_embedded_player::EmbeddedMpvPlayer::new_for_hwnd(hwnd) {
-                        Ok(player) => {
-                            println!("[MutsukiTube] Embedded libmpv initialized");
-
-                            session.player = Some(player);
-                        }
-
-                        Err(error) => {
-                            eprintln!("[MutsukiTube] libmpv error: {error}");
-
-                            return;
-                        }
+                    if let Err(error) = session.controller.initialize(hwnd) {
+                        eprintln!("[MutsukiTube] Player init error: {error}");
                     }
                 }
 
-                // ======================================
-                // RESUME AFTER NAVIGATION
-                // ======================================
-
-                if paused_for_navigation.get() {
-                    if let Some(player) = session.player.as_ref() {
-                        match player.play() {
-                            Ok(()) => {
-                                paused_for_navigation.set(false);
-
-                                println!(
-                                    "[MutsukiTube] Playback resumed: \
-                                    WatchPage active"
-                                );
-                            }
-
-                            Err(error) => {
-                                eprintln!("[MutsukiTube] Resume error: {error}");
-                            }
-                        }
-                    }
-                }
-
-                // ======================================
-                // PLAY LOCAL TEST VIDEO
-                // ======================================
-
-                if !session.media_loaded {
-                    if let (Some(player), Some(video_path)) =
-                        (session.player.as_ref(), test_video.as_ref())
-                    {
-                        match player.load(video_path) {
-                            Ok(()) => {
-                                println!(
-                                    "[MutsukiTube] Loading test video: \
-                                 {video_path}"
-                                );
-
-                                session.media_loaded = true;
-                            }
-
-                            Err(error) => {
-                                eprintln!(
-                                    "[MutsukiTube] Playback error: \
-                                 {error}"
-                                );
-
-                                // Jangan mengulangi load
-                                // setiap 100 milidetik.
-                                session.media_loaded = true;
-                            }
-                        }
-                    }
-                }
+                // Tidak ada auto-load sample.mp4 lagi.
+                // Video akan dimuat melalui player controller.
             },
         );
 

@@ -76,4 +76,28 @@ impl EmbeddedMpvPlayer {
 
         Ok(Self { mpv })
     }
+
+    pub fn is_paused(&self) -> Result<bool, String> {
+        self.mpv
+            .get_property::<bool>("pause")
+            .map_err(|error| error.to_string())
+    }
+
+    pub fn position(&self) -> Result<f64, String> {
+        self.mpv
+            .get_property::<f64>("playback-time")
+            .map_err(|error| error.to_string())
+    }
+
+    pub fn duration(&self) -> Result<f64, String> {
+        self.mpv
+            .get_property::<f64>("duration")
+            .map_err(|error| error.to_string())
+    }
+
+    pub fn volume(&self) -> Result<f64, String> {
+        self.mpv
+            .get_property::<f64>("volume")
+            .map_err(|error| error.to_string())
+    }
 }

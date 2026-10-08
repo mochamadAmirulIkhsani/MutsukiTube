@@ -1,30 +1,26 @@
-use mutsukitube_embedded_player::EmbeddedMpvPlayer;
+use crate::player_controller::EmbeddedPlayerController;
 
 use super::windows::Win32VideoSurface;
 
 pub struct NativeVideoSession {
     pub surface: Option<Win32VideoSurface>,
-    pub player: Option<EmbeddedMpvPlayer>,
-    pub media_loaded: bool,
+    pub controller: EmbeddedPlayerController,
 }
 
 impl NativeVideoSession {
     pub fn new() -> Self {
         Self {
             surface: None,
-            player: None,
-            media_loaded: false,
+            controller: EmbeddedPlayerController::new(),
         }
     }
 
     pub fn shutdown(&mut self) {
-        // Hancurkan libmpv terlebih dahulu.
-        self.player.take();
+        // Lepaskan libmpv terlebih dahulu.
+        self.controller.shutdown();
 
-        // Baru kemudian hancurkan child HWND.
+        // Baru hancurkan child HWND.
         self.surface.take();
-
-        self.media_loaded = false;
     }
 }
 
