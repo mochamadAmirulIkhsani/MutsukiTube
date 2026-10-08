@@ -3147,12 +3147,14 @@ dependencies = [
  "mutsukitube-player",
  "mutsukitube-storage",
  "mutsukitube-youtube",
+ "raw-window-handle",
  "reqwest",
  "rusqlite",
  "sha2",
  "slint",
  "slint-build",
  "tokio",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

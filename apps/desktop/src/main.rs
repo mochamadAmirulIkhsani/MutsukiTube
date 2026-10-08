@@ -1,5 +1,6 @@
 mod app_context;
 mod handlers;
+mod native_window;
 mod state;
 mod thumbnail;
 mod thumbnail_ui;
@@ -22,6 +23,15 @@ use state::AppState;
 
 use app_context::AppContext;
 
+#[cfg(target_os = "windows")]
+use std::cell::RefCell;
+
+#[cfg(target_os = "windows")]
+use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+
+#[cfg(target_os = "windows")]
+use native_window::windows::Win32VideoSurface;
+
 slint::include_modules!();
 
 fn find_video(state: &AppState, id: &str) -> Option<Video> {
@@ -32,6 +42,19 @@ fn find_video(state: &AppState, id: &str) -> Option<Video> {
         .chain(state.library_results.iter())
         .find(|video| video.id == id)
         .cloned()
+}
+
+#[cfg(target_os = "windows")]
+fn get_slint_hwnd(ui: &AppWindow) -> Option<windows_sys::Win32::Foundation::HWND> {
+    let window = ui.window().window_handle();
+
+    let handle = window.window_handle().ok()?;
+
+    match handle.as_raw() {
+        RawWindowHandle::Win32(win32) => Some(win32.hwnd.get() as *mut std::ffi::c_void),
+
+        _ => None,
+    }
 }
 
 fn main() -> Result<(), slint::PlatformError> {
@@ -199,5 +222,68 @@ fn main() -> Result<(), slint::PlatformError> {
 
     handlers::search::register(&ui, &context);
 
-    ui.run()
+    #[cfg(target_os = "windows")]
+    let surface_timer = {
+        use std::time::Duration;
+
+        let weak = ui.as_weak();
+
+        let surface = Rc::new(RefCell::new(None::<Win32VideoSurface>));
+
+        let timer = slint::Timer::default();
+
+        timer.start(
+            slint::TimerMode::Repeated,
+            Duration::from_millis(100),
+            move || {
+                let Some(ui) = weak.upgrade() else {
+                    return;
+                };
+
+                let on_watch_page = ui.get_current_page().as_str() == "watch";
+
+                // Surface dibuat setelah Slint
+                // mempunyai native HWND.
+                if surface.borrow().is_none() && on_watch_page {
+                    if let Some(parent) = get_slint_hwnd(&ui) {
+                        match Win32VideoSurface::new(parent) {
+                            Ok(child) => {
+                                println!("[MutsukiTube] Child HWND created");
+                                *surface.borrow_mut() = Some(child);
+                            }
+
+                            Err(error) => {
+                                eprintln!("[MutsukiTube] HWND error: {error}");
+                            }
+                        }
+                    }
+                }
+
+                if let Some(child) = surface.borrow().as_ref() {
+                    if on_watch_page {
+                        // Posisi sementara untuk pengujian.
+                        if let Err(error) = child.set_geometry(24, 100, 640, 360) {
+                            eprintln!("[MutsukiTube] Resize error: {error}");
+                        }
+
+                        child.show();
+                    } else {
+                        child.hide();
+                    }
+                }
+            },
+        );
+
+        timer
+    };
+
+    #[cfg(target_os = "windows")]
+    ui.show()?;
+
+    let result = ui.run();
+
+    #[cfg(target_os = "windows")]
+    surface_timer.stop();
+
+    result
 }
