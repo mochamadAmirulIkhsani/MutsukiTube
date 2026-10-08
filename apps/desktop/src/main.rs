@@ -12,7 +12,7 @@ use mutsukitube_core::{ProviderError, Video, VideoProvider};
 
 use mutsukitube_player::ExternalMpvPlayer;
 
-use mutsukitube_storage::{get_history, save_video};
+use mutsukitube_storage::{get_history, get_provider_mode, save_video, set_provider_mode};
 
 use mutsukitube_youtube::{NativeYoutubeProvider, ProviderMode, SearchPage, YtDlpProvider};
 
@@ -49,11 +49,17 @@ fn video_to_ui(video: &Video, thumbnail: slint::Image) -> VideoItem {
     }
 }
 
+fn parse_provider_mode(value: &str) -> ProviderMode {
+    match value {
+        "native" => ProviderMode::Native,
+        "ytdlp" => ProviderMode::YtDlp,
+        _ => ProviderMode::Auto,
+    }
+}
+
 // Provider untuk halaman pertama.
 // Mode auto mencoba native lalu fallback.
-async fn fetch_first_page(query: &str) -> Result<SearchPage, ProviderError> {
-    let mode = ProviderMode::from_env();
-
+async fn fetch_first_page(query: &str, mode: ProviderMode) -> Result<SearchPage, ProviderError> {
     match mode {
         ProviderMode::Native => NativeYoutubeProvider::new().search_page(query, None).await,
 
@@ -199,7 +205,22 @@ fn main() -> Result<(), slint::PlatformError> {
 
     let tokio_handle = runtime.handle().clone();
 
-    let state = Arc::new(Mutex::new(AppState::default()));
+    let saved_provider = match get_provider_mode() {
+        Ok(mode) => mode,
+
+        Err(error) => {
+            eprintln!("[MutsukiTube] Failed to load settings: {error}");
+
+            "auto".to_string()
+        }
+    };
+
+    let state = Arc::new(Mutex::new(AppState {
+        provider_mode: saved_provider.clone(),
+        ..AppState::default()
+    }));
+
+    ui.set_provider_mode(saved_provider.into());
 
     let video_model = Rc::new(VecModel::<VideoItem>::default());
 
@@ -221,7 +242,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 return;
             }
 
-            let generation = {
+            let (generation, provider_mode) = {
                 let mut s = state.lock().unwrap();
 
                 s.search_generation = s.search_generation.wrapping_add(1);
@@ -231,7 +252,9 @@ fn main() -> Result<(), slint::PlatformError> {
                 s.continuation_token = None;
                 s.loading_more = false;
 
-                s.search_generation
+                let provider_mode = parse_provider_mode(&s.provider_mode);
+
+                (s.search_generation, provider_mode)
             };
 
             if let Some(ui) = weak.upgrade() {
@@ -255,7 +278,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let handle_for_images = tokio_handle.clone();
 
             runtime.spawn(async move {
-                let result = fetch_first_page(&query).await;
+                let result = fetch_first_page(&query, provider_mode).await;
 
                 match result {
                     Ok(page) => {
@@ -533,6 +556,69 @@ fn main() -> Result<(), slint::PlatformError> {
 
         ui.on_refresh_history(move || {
             load_history(weak.clone(), state.clone(), handle.clone());
+        });
+    }
+
+    // ========================================
+    // SAVE SETTINGS
+    // ========================================
+    {
+        let weak = ui.as_weak();
+        let state = state.clone();
+        let handle = tokio_handle.clone();
+
+        ui.on_save_provider(move |mode| {
+            let mode = mode.to_string();
+
+            if !matches!(mode.as_str(), "auto" | "native" | "ytdlp") {
+                if let Some(ui) = weak.upgrade() {
+                    ui.set_settings_status("Invalid provider mode".into());
+                }
+
+                return;
+            }
+
+            if let Some(ui) = weak.upgrade() {
+                ui.set_settings_status("Saving settings...".into());
+            }
+
+            let weak = weak.clone();
+            let state = state.clone();
+
+            handle.spawn_blocking(move || {
+                let result = set_provider_mode(&mode);
+
+                let _ = weak.upgrade_in_event_loop(move |ui| {
+                    match result {
+                        Ok(()) => {
+                            if let Ok(mut s) = state.lock() {
+                                s.provider_mode = mode.clone();
+
+                                // Batalkan hasil request lama
+                                // setelah provider berganti.
+                                s.search_generation = s.search_generation.wrapping_add(1);
+
+                                s.loading_more = false;
+                                s.continuation_token = None;
+                            }
+
+                            ui.set_provider_mode(mode.into());
+
+                            ui.set_loading(false);
+                            ui.set_loading_more(false);
+                            ui.set_has_more(false);
+
+                            ui.set_settings_status("Settings saved successfully".into());
+                        }
+
+                        Err(error) => {
+                            ui.set_settings_status(
+                                format!("Failed to save settings: {error}").into(),
+                            );
+                        }
+                    }
+                });
+            });
         });
     }
 

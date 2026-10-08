@@ -13,4 +13,6 @@ pub struct AppState {
     pub search_generation: u64,
 
     pub loading_more: bool,
+
+    pub provider_mode: String,
 }

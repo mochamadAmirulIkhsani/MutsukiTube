@@ -6,6 +6,8 @@ import { VideoItem } from "components/video-card.slint";
 
 import { HistoryPage } from "pages/history-page.slint";
 
+import { SettingsPage } from "pages/settings-page.slint";
+
 export component AppWindow inherits Window {
     title: "MutsukiTube";
 
@@ -28,6 +30,10 @@ export component AppWindow inherits Window {
     in-out property <[VideoItem]> history-videos;
     in-out property <bool> history-loading: false;
     in-out property <string> history-status: "";
+
+    in-out property <string> provider-mode: "auto";
+    in-out property <string> settings-status: "";
+    callback save-provider(string);
 
     callback search(string);
     callback open-video(string);
@@ -58,6 +64,11 @@ export component AppWindow inherits Window {
         show-history => {
             root.current-page = "history";
             root.show-history();
+        }
+
+        show-settings => {
+            root.settings-status = "";
+            root.current-page = "settings";
         }
     }
 
@@ -90,6 +101,19 @@ export component AppWindow inherits Window {
 
         refresh => {
             root.refresh-history();
+        }
+    }
+
+    if root.current-page == "settings": SettingsPage {
+        provider-mode: root.provider-mode;
+        status-text: root.settings-status;
+
+        back => {
+            root.current-page = "search";
+        }
+
+        save-provider(mode) => {
+            root.save-provider(mode);
         }
     }
 }
