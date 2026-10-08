@@ -1,0 +1,87 @@
+import {
+    Button,
+    ComboBox,
+    VerticalBox,
+    HorizontalBox,
+} from "std-widgets.slint";
+
+export component SettingsPage inherits Rectangle {
+    in property <string> provider-mode: "auto";
+    in property <string> status-text: "";
+
+    callback back();
+    callback save-provider(string);
+
+    background: #0f0f0f;
+
+    VerticalBox {
+        padding: 24px;
+        spacing: 20px;
+
+        HorizontalBox {
+            spacing: 12px;
+
+            Button {
+                text: "Back";
+
+                clicked => {
+                    root.back();
+                }
+            }
+
+            Text {
+                text: "Settings";
+                color: white;
+                font-size: 26px;
+                font-weight: 700;
+            }
+        }
+
+        Text {
+            text: "YouTube Search Provider";
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        provider-select := ComboBox {
+            model: ["auto", "native", "ytdlp"];
+
+            current-value: root.provider-mode;
+        }
+
+        Text {
+            text: "Auto: Native first, yt-dlp fallback";
+            color: #aaaaaa;
+        }
+
+        Text {
+            text: "Native: Rust InnerTube only";
+            color: #aaaaaa;
+        }
+
+        Text {
+            text: "yt-dlp: External extractor";
+            color: #aaaaaa;
+        }
+
+        Button {
+            text: "Save Settings";
+
+            clicked => {
+                root.save-provider(
+                    provider-select.current-value);
+            }
+        }
+
+        if root.status-text != "": Text {
+            text: root.status-text;
+            color: #bbbbbb;
+        }
+
+        Rectangle {
+            vertical-stretch: 1;
+            background: transparent;
+        }
+    }
+}

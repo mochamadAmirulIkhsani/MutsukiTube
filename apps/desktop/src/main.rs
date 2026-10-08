@@ -12,7 +12,10 @@ use mutsukitube_core::{ProviderError, Video, VideoProvider};
 
 use mutsukitube_player::ExternalMpvPlayer;
 
-use mutsukitube_storage::{get_history, save_video};
+use mutsukitube_storage::{
+    add_to_playlist, create_playlist, get_favorites, get_history, get_playlist_names,
+    get_playlist_videos, get_provider_mode, save_video, set_provider_mode, toggle_favorite,
+};
 
 use mutsukitube_youtube::{NativeYoutubeProvider, ProviderMode, SearchPage, YtDlpProvider};
 
@@ -20,6 +23,8 @@ use slint::{ComponentHandle, Model, ModelRc, VecModel};
 
 use state::AppState;
 use thumbnail::download_thumbnail;
+
+use rusqlite;
 
 slint::include_modules!();
 
@@ -49,11 +54,17 @@ fn video_to_ui(video: &Video, thumbnail: slint::Image) -> VideoItem {
     }
 }
 
+fn parse_provider_mode(value: &str) -> ProviderMode {
+    match value {
+        "native" => ProviderMode::Native,
+        "ytdlp" => ProviderMode::YtDlp,
+        _ => ProviderMode::Auto,
+    }
+}
+
 // Provider untuk halaman pertama.
 // Mode auto mencoba native lalu fallback.
-async fn fetch_first_page(query: &str) -> Result<SearchPage, ProviderError> {
-    let mode = ProviderMode::from_env();
-
+async fn fetch_first_page(query: &str, mode: ProviderMode) -> Result<SearchPage, ProviderError> {
     match mode {
         ProviderMode::Native => NativeYoutubeProvider::new().search_page(query, None).await,
 
@@ -192,6 +203,84 @@ fn load_history(
     });
 }
 
+fn find_video(state: &AppState, id: &str) -> Option<Video> {
+    state
+        .search_results
+        .iter()
+        .chain(state.history_results.iter())
+        .chain(state.library_results.iter())
+        .find(|video| video.id == id)
+        .cloned()
+}
+
+fn refresh_library(
+    weak: slint::Weak<AppWindow>,
+    state: Arc<Mutex<AppState>>,
+    handle: tokio::runtime::Handle,
+    mode: String,
+    playlist: String,
+) {
+    if let Some(ui) = weak.upgrade() {
+        ui.set_library_loading(true);
+        ui.set_library_status("Loading library...".into());
+    }
+
+    handle.spawn_blocking(move || {
+        let result = (|| {
+            let names = get_playlist_names()?;
+
+            let videos = if mode == "favorites" {
+                get_favorites()?
+            } else {
+                get_playlist_videos(&playlist)?
+            };
+
+            Ok::<_, rusqlite::Error>((names, videos))
+        })();
+
+        let _ = weak.upgrade_in_event_loop(move |ui| {
+            // Jangan tampilkan hasil request yang sudah tidak relevan.
+            if ui.get_library_mode().as_str() != mode
+                || (mode == "playlist" && ui.get_selected_playlist().as_str() != playlist)
+            {
+                return;
+            }
+
+            ui.set_library_loading(false);
+
+            match result {
+                Ok((names, videos)) => {
+                    let names = names
+                        .into_iter()
+                        .map(slint::SharedString::from)
+                        .collect::<Vec<_>>();
+
+                    ui.set_playlist_names(ModelRc::from(Rc::new(VecModel::from(names))));
+
+                    let count = videos.len();
+
+                    if let Ok(mut s) = state.lock() {
+                        s.library_results = videos.clone();
+                    }
+
+                    let items = videos
+                        .iter()
+                        .map(|video| video_to_ui(video, slint::Image::default()))
+                        .collect::<Vec<_>>();
+
+                    ui.set_library_videos(ModelRc::from(Rc::new(VecModel::from(items))));
+
+                    ui.set_library_status(format!("{count} videos").into());
+                }
+
+                Err(error) => {
+                    ui.set_library_status(format!("Library error: {error}").into());
+                }
+            }
+        });
+    });
+}
+
 fn main() -> Result<(), slint::PlatformError> {
     let ui = AppWindow::new()?;
 
@@ -199,7 +288,22 @@ fn main() -> Result<(), slint::PlatformError> {
 
     let tokio_handle = runtime.handle().clone();
 
-    let state = Arc::new(Mutex::new(AppState::default()));
+    let saved_provider = match get_provider_mode() {
+        Ok(mode) => mode,
+
+        Err(error) => {
+            eprintln!("[MutsukiTube] Failed to load settings: {error}");
+
+            "auto".to_string()
+        }
+    };
+
+    let state = Arc::new(Mutex::new(AppState {
+        provider_mode: saved_provider.clone(),
+        ..AppState::default()
+    }));
+
+    ui.set_provider_mode(saved_provider.into());
 
     let video_model = Rc::new(VecModel::<VideoItem>::default());
 
@@ -221,7 +325,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 return;
             }
 
-            let generation = {
+            let (generation, provider_mode) = {
                 let mut s = state.lock().unwrap();
 
                 s.search_generation = s.search_generation.wrapping_add(1);
@@ -231,7 +335,9 @@ fn main() -> Result<(), slint::PlatformError> {
                 s.continuation_token = None;
                 s.loading_more = false;
 
-                s.search_generation
+                let provider_mode = parse_provider_mode(&s.provider_mode);
+
+                (s.search_generation, provider_mode)
             };
 
             if let Some(ui) = weak.upgrade() {
@@ -255,7 +361,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let handle_for_images = tokio_handle.clone();
 
             runtime.spawn(async move {
-                let result = fetch_first_page(&query).await;
+                let result = fetch_first_page(&query, provider_mode).await;
 
                 match result {
                     Ok(page) => {
@@ -470,13 +576,10 @@ fn main() -> Result<(), slint::PlatformError> {
         let handle = tokio_handle.clone();
 
         ui.on_open_video(move |video_id| {
-            let video = state.lock().ok().and_then(|s| {
-                s.search_results
-                    .iter()
-                    .chain(s.history_results.iter())
-                    .find(|video| video.id == video_id.as_str())
-                    .cloned()
-            });
+            let video = state
+                .lock()
+                .ok()
+                .and_then(|s| find_video(&s, video_id.as_str()));
 
             let Some(video) = video else {
                 return;
@@ -534,6 +637,296 @@ fn main() -> Result<(), slint::PlatformError> {
         ui.on_refresh_history(move || {
             load_history(weak.clone(), state.clone(), handle.clone());
         });
+    }
+
+    // ========================================
+    // SAVE SETTINGS
+    // ========================================
+    {
+        let weak = ui.as_weak();
+        let state = state.clone();
+        let handle = tokio_handle.clone();
+
+        ui.on_save_provider(move |mode| {
+            let mode = mode.to_string();
+
+            if !matches!(mode.as_str(), "auto" | "native" | "ytdlp") {
+                if let Some(ui) = weak.upgrade() {
+                    ui.set_settings_status("Invalid provider mode".into());
+                }
+
+                return;
+            }
+
+            if let Some(ui) = weak.upgrade() {
+                ui.set_settings_status("Saving settings...".into());
+            }
+
+            let weak = weak.clone();
+            let state = state.clone();
+
+            handle.spawn_blocking(move || {
+                let result = set_provider_mode(&mode);
+
+                let _ = weak.upgrade_in_event_loop(move |ui| {
+                    match result {
+                        Ok(()) => {
+                            if let Ok(mut s) = state.lock() {
+                                s.provider_mode = mode.clone();
+
+                                // Batalkan hasil request lama
+                                // setelah provider berganti.
+                                s.search_generation = s.search_generation.wrapping_add(1);
+
+                                s.loading_more = false;
+                                s.continuation_token = None;
+                            }
+
+                            ui.set_provider_mode(mode.into());
+
+                            ui.set_loading(false);
+                            ui.set_loading_more(false);
+                            ui.set_has_more(false);
+
+                            ui.set_settings_status("Settings saved successfully".into());
+                        }
+
+                        Err(error) => {
+                            ui.set_settings_status(
+                                format!("Failed to save settings: {error}").into(),
+                            );
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    // ========================================
+    // OPEN LIBRARY
+    // ========================================
+    {
+        let weak = ui.as_weak();
+        let state = state.clone();
+        let handle = tokio_handle.clone();
+
+        ui.on_show_library(move || {
+            refresh_library(
+                weak.clone(),
+                state.clone(),
+                handle.clone(),
+                "favorites".to_string(),
+                String::new(),
+            );
+        });
+    }
+
+    // ========================================
+    // REFRESH LIBRARY
+    // ========================================
+    {
+        let weak = ui.as_weak();
+        let state = state.clone();
+        let handle = tokio_handle.clone();
+
+        ui.on_refresh_library(move || {
+            let Some(ui) = weak.upgrade() else {
+                return;
+            };
+
+            let mode = ui.get_library_mode().to_string();
+            let playlist = ui.get_selected_playlist().to_string();
+
+            refresh_library(weak.clone(), state.clone(), handle.clone(), mode, playlist);
+        });
+    }
+
+    // ========================================
+    // SELECT PLAYLIST
+    // ========================================
+    {
+        let weak = ui.as_weak();
+        let state = state.clone();
+        let handle = tokio_handle.clone();
+
+        ui.on_select_playlist(move |name| {
+            refresh_library(
+                weak.clone(),
+                state.clone(),
+                handle.clone(),
+                "playlist".to_string(),
+                name.to_string(),
+            );
+        });
+    }
+
+    // ========================================
+    // CREATE PLAYLIST
+    // ========================================
+    {
+        let weak = ui.as_weak();
+        let state = state.clone();
+        let handle = tokio_handle.clone();
+
+        ui.on_create_playlist(move |name| {
+            let name = name.trim().to_string();
+
+            if name.is_empty() {
+                if let Some(ui) = weak.upgrade() {
+                    ui.set_library_status("Playlist name cannot be empty".into());
+                }
+                return;
+            }
+
+            let weak = weak.clone();
+            let state = state.clone();
+            let handle_for_refresh = handle.clone();
+
+            handle.spawn_blocking(move || {
+                let result = create_playlist(&name);
+
+                let _ = weak.upgrade_in_event_loop(move |ui| match result {
+                    Ok(()) => {
+                        ui.set_library_mode("playlist".into());
+                        ui.set_selected_playlist(name.clone().into());
+
+                        refresh_library(
+                            ui.as_weak(),
+                            state,
+                            handle_for_refresh,
+                            "playlist".to_string(),
+                            name,
+                        );
+                    }
+
+                    Err(error) => {
+                        ui.set_library_status(format!("Failed to create playlist: {error}").into());
+                    }
+                });
+            });
+        });
+    }
+
+    // ========================================
+    // TOGGLE FAVORITE
+    // ========================================
+    {
+        let weak = ui.as_weak();
+        let state = state.clone();
+        let handle = tokio_handle.clone();
+
+        ui.on_toggle_favorite(move || {
+            let Some(ui) = weak.upgrade() else {
+                return;
+            };
+
+            let video_id = ui.get_selected_video_id().to_string();
+
+            let video = state.lock().ok().and_then(|s| find_video(&s, &video_id));
+
+            let Some(video) = video else {
+                ui.set_watch_library_status("Video not found".into());
+                return;
+            };
+
+            ui.set_watch_library_status("Saving favorite...".into());
+
+            let weak = weak.clone();
+
+            handle.spawn_blocking(move || {
+                let result = toggle_favorite(&video);
+
+                let _ = weak.upgrade_in_event_loop(move |ui| {
+                    if ui.get_selected_video_id().as_str() != video_id {
+                        return;
+                    }
+
+                    match result {
+                        Ok(true) => {
+                            ui.set_watch_library_status("Added to Favorites".into());
+                        }
+
+                        Ok(false) => {
+                            ui.set_watch_library_status("Removed from Favorites".into());
+                        }
+
+                        Err(error) => {
+                            ui.set_watch_library_status(format!("Favorite error: {error}").into());
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    // ========================================
+    // ADD VIDEO TO PLAYLIST
+    // ========================================
+    {
+        let weak = ui.as_weak();
+        let state = state.clone();
+        let handle = tokio_handle.clone();
+
+        ui.on_add_to_playlist(move |name| {
+            let playlist_name = name.to_string();
+
+            let Some(ui) = weak.upgrade() else {
+                return;
+            };
+
+            if playlist_name.is_empty() {
+                ui.set_watch_library_status("Select a playlist first".into());
+                return;
+            }
+
+            let video_id = ui.get_selected_video_id().to_string();
+
+            let video = state.lock().ok().and_then(|s| find_video(&s, &video_id));
+
+            let Some(video) = video else {
+                ui.set_watch_library_status("Video not found".into());
+                return;
+            };
+
+            ui.set_watch_library_status("Adding to playlist...".into());
+
+            let weak = weak.clone();
+
+            handle.spawn_blocking(move || {
+                let result = add_to_playlist(&playlist_name, &video);
+
+                let _ = weak.upgrade_in_event_loop(move |ui| {
+                    if ui.get_selected_video_id().as_str() != video_id {
+                        return;
+                    }
+
+                    match result {
+                        Ok(()) => {
+                            ui.set_watch_library_status("Video saved to playlist".into());
+                        }
+
+                        Err(error) => {
+                            ui.set_watch_library_status(format!("Playlist error: {error}").into());
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    match get_playlist_names() {
+        Ok(names) => {
+            let items = names
+                .into_iter()
+                .map(slint::SharedString::from)
+                .collect::<Vec<_>>();
+
+            ui.set_playlist_names(ModelRc::from(Rc::new(VecModel::from(items))));
+        }
+
+        Err(error) => {
+            eprintln!("[MutsukiTube] Failed to load playlists: {error}");
+        }
     }
 
     ui.run()

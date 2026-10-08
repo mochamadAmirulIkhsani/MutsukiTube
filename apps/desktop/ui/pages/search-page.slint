@@ -25,6 +25,8 @@ export component SearchPage inherits Rectangle {
     callback open-video(string);
     callback load-more();
     callback show-history();
+    callback show-settings();
+    callback show-library();
 
     background: #0f0f0f;
 
@@ -51,6 +53,22 @@ export component SearchPage inherits Rectangle {
 
                 clicked => {
                     root.show-history();
+                }
+            }
+
+            Button {
+                text: "Settings";
+
+                clicked => {
+                    root.show-settings();
+                }
+            }
+
+            Button {
+                text: "Library";
+
+                clicked => {
+                    root.show-library();
                 }
             }
         }
