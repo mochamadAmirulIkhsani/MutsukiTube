@@ -23,5 +23,7 @@ dirs = "6"
 sha2 = "0.10"
 hex = "0.4"
 
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+
 [build-dependencies]
 slint-build = "1"

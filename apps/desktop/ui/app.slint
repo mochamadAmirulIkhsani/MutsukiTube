@@ -8,6 +8,8 @@ import { HistoryPage } from "pages/history-page.slint";
 
 import { SettingsPage } from "pages/settings-page.slint";
 
+import { LibraryPage } from "pages/library-page.slint";
+
 export component AppWindow inherits Window {
     title: "MutsukiTube";
 
@@ -33,14 +35,31 @@ export component AppWindow inherits Window {
 
     in-out property <string> provider-mode: "auto";
     in-out property <string> settings-status: "";
-    callback save-provider(string);
 
+    in-out property <[VideoItem]> library-videos;
+    in-out property <[string]> playlist-names;
+
+    in-out property <string> library-mode: "favorites";
+    in-out property <string> selected-playlist: "";
+
+    in-out property <bool> library-loading: false;
+
+    in-out property <string> library-status: "";
+    in-out property <string> watch-library-status: "";
+
+    callback save-provider(string);
     callback search(string);
     callback open-video(string);
     callback play-video(string);
     callback load-more();
     callback show-history();
     callback refresh-history();
+    callback show-library();
+    callback refresh-library();
+    callback select-playlist(string);
+    callback create-playlist(string);
+    callback toggle-favorite();
+    callback add-to-playlist(string);
 
     if root.current-page == "search": SearchPage {
         videos: root.videos;
@@ -70,12 +89,21 @@ export component AppWindow inherits Window {
             root.settings-status = "";
             root.current-page = "settings";
         }
+
+        show-library => {
+            root.library-mode = "favorites";
+            root.selected-playlist = "";
+            root.current-page = "library";
+            root.show-library();
+        }
     }
 
     if root.current-page == "watch": WatchPage {
         video-id: root.selected-video-id;
         video-title: root.selected-video-title;
         channel: root.selected-video-channel;
+        playlists: root.playlist-names;
+        library-status: root.watch-library-status;
 
         back => {
             root.current-page = "search";
@@ -83,6 +111,14 @@ export component AppWindow inherits Window {
 
         play(id) => {
             root.play-video(id);
+        }
+
+        toggle-favorite => {
+            root.toggle-favorite();
+        }
+
+        add-to-playlist(name) => {
+            root.add-to-playlist(name);
         }
     }
 
@@ -114,6 +150,44 @@ export component AppWindow inherits Window {
 
         save-provider(mode) => {
             root.save-provider(mode);
+        }
+    }
+
+    if root.current-page == "library": LibraryPage {
+        videos: root.library-videos;
+        playlists: root.playlist-names;
+
+        library-mode: root.library-mode;
+        selected-playlist: root.selected-playlist;
+
+        loading: root.library-loading;
+        status-text: root.library-status;
+
+        back => {
+            root.current-page = "search";
+        }
+
+        open-video(id) => {
+            root.open-video(id);
+        }
+
+        show-favorites => {
+            root.library-mode = "favorites";
+            root.refresh-library();
+        }
+
+        select-playlist(name) => {
+            root.library-mode = "playlist";
+            root.selected-playlist = name;
+            root.select-playlist(name);
+        }
+
+        create-playlist(name) => {
+            root.create-playlist(name);
+        }
+
+        refresh => {
+            root.refresh-library();
         }
     }
 }
