@@ -38,6 +38,9 @@ use native_window::session::NativeVideoSession;
 #[cfg(target_os = "windows")]
 mod player_controller;
 
+#[cfg(target_os = "windows")]
+use mutsukitube_player::ExternalMpvPlayer;
+
 slint::include_modules!();
 
 fn find_video(state: &AppState, id: &str) -> Option<Video> {
@@ -218,27 +221,31 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     }
 
+    #[cfg(target_os = "windows")]
+    let native_session = Rc::new(RefCell::new(NativeVideoSession::new()));
+
+    #[cfg(target_os = "windows")]
+    handlers::player::register(&ui, &context, native_session.clone());
+
+    #[cfg(not(target_os = "windows"))]
     handlers::player::register(&ui, &context);
 
     handlers::history::register(&ui, &context);
-
     handlers::settings::register(&ui, &context);
-
     handlers::library::register(&ui, &context);
-
     handlers::search::register(&ui, &context);
 
     #[cfg(target_os = "windows")]
-    let (surface_timer, native_session) = {
+    let surface_timer = {
         use std::time::Duration;
 
         let weak = ui.as_weak();
 
-        let session = Rc::new(RefCell::new(NativeVideoSession::new()));
-
-        let session_for_timer = session.clone();
+        let session_for_timer = native_session.clone();
 
         let timer = slint::Timer::default();
+
+        let last_logged_second = std::cell::Cell::new(None::<u64>);
 
         timer.start(
             slint::TimerMode::Repeated,
@@ -251,18 +258,42 @@ fn main() -> Result<(), slint::PlatformError> {
                 let is_watch = ui.get_current_page().as_str() == "watch";
 
                 let mut session = session_for_timer.borrow_mut();
+                session.controller.poll_events();
 
-                // =====================================
-                // NAVIGATION
-                // =====================================
+                let position = session.controller.position();
+                let duration = session.controller.duration();
+
+                if let (Some(position), Some(duration)) = (position, duration) {
+                    if position.is_finite()
+                        && duration.is_finite()
+                        && position >= 0.0
+                        && duration > 0.0
+                    {
+                        let current_second = position.floor() as u64;
+
+                        if current_second % 10 == 0
+                            && last_logged_second.get() != Some(current_second)
+                        {
+                            last_logged_second.set(Some(current_second));
+
+                            println!("[libmpv] Position: {:.1}s / {:.1}s", position, duration,);
+                        }
+                    }
+                }
 
                 session.controller.on_navigation(is_watch);
 
-                // =====================================
-                // CREATE SURFACE
-                // =====================================
+                if !is_watch {
+                    session.pending_video_id = None;
 
-                if is_watch && session.surface.is_none() {
+                    if let Some(surface) = session.surface.as_ref() {
+                        surface.hide();
+                    }
+
+                    return;
+                }
+
+                if session.surface.is_none() {
                     let Some(parent) = get_slint_hwnd(&ui) else {
                         return;
                     };
@@ -276,21 +307,13 @@ fn main() -> Result<(), slint::PlatformError> {
 
                         Err(error) => {
                             eprintln!("[MutsukiTube] Surface error: {error}");
+
                             return;
                         }
                     }
                 }
 
-                // =====================================
-                // SURFACE VISIBILITY
-                // =====================================
-
                 if let Some(surface) = session.surface.as_ref() {
-                    if !is_watch {
-                        surface.hide();
-                        return;
-                    }
-
                     if let Err(error) = surface.set_geometry(24, 100, 640, 360) {
                         eprintln!("[MutsukiTube] Geometry error: {error}");
                     }
@@ -298,28 +321,62 @@ fn main() -> Result<(), slint::PlatformError> {
                     surface.show();
                 }
 
-                // =====================================
-                // INITIALIZE EMBEDDED PLAYER
-                // =====================================
-
-                if is_watch && !session.controller.is_initialized() {
-                    let Some(surface) = session.surface.as_ref() else {
-                        return;
+                if !session.controller.is_initialized() {
+                    let hwnd = match session.surface.as_ref() {
+                        Some(surface) => surface.hwnd() as usize,
+                        None => return,
                     };
-
-                    let hwnd = surface.hwnd() as usize;
 
                     if let Err(error) = session.controller.initialize(hwnd) {
                         eprintln!("[MutsukiTube] Player init error: {error}");
+
+                        if let Some(video_id) = session.pending_video_id.take() {
+                            if let Err(fallback_error) = ExternalMpvPlayer::play_youtube(&video_id)
+                            {
+                                eprintln!(
+                                    "[MutsukiTube] Fallback error: \
+                                 {fallback_error}"
+                                );
+                            }
+                        }
+
+                        return;
                     }
                 }
 
-                // Tidak ada auto-load sample.mp4 lagi.
-                // Video akan dimuat melalui player controller.
+                let Some(video_id) = session.pending_video_id.take() else {
+                    return;
+                };
+
+                let url = format!("https://www.youtube.com/watch?v={video_id}");
+
+                match session.controller.load_video(&url) {
+                    Ok(()) => {
+                        if let Err(error) = session.controller.play() {
+                            eprintln!("[MutsukiTube] Play error: {error}");
+                        }
+
+                        println!(
+                            "[MutsukiTube] Embedded video requested: \
+                         {video_id}"
+                        );
+                    }
+
+                    Err(error) => {
+                        eprintln!("[MutsukiTube] Embedded load error: {error}");
+
+                        if let Err(fallback_error) = ExternalMpvPlayer::play_youtube(&video_id) {
+                            eprintln!(
+                                "[MutsukiTube] Fallback error: \
+                             {fallback_error}"
+                            );
+                        }
+                    }
+                }
             },
         );
 
-        (timer, session)
+        timer
     };
 
     #[cfg(target_os = "windows")]
@@ -331,7 +388,7 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         surface_timer.stop();
 
-        // Pastikan player dilepaskan sebelum HWND.
+        // Hentikan controller dan bebaskan HWND.
         native_session.borrow_mut().shutdown();
     }
 

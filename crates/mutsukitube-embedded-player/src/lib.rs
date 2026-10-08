@@ -1,4 +1,4 @@
-use rsmpv::Mpv;
+use rsmpv::{Event, Mpv};
 
 pub struct EmbeddedMpvPlayer {
     mpv: Mpv,
@@ -99,5 +99,29 @@ impl EmbeddedMpvPlayer {
         self.mpv
             .get_property::<f64>("volume")
             .map_err(|error| error.to_string())
+    }
+
+    pub fn poll_events(&self) {
+        while let Some(event) = self.mpv.poll_event() {
+            match event {
+                Event::StartFile { .. } => {
+                    println!("[libmpv] Starting video...");
+                }
+
+                Event::FileLoaded => {
+                    println!("[libmpv] Video successfully loaded");
+                }
+
+                Event::EndFile { reason, error, .. } => {
+                    eprintln!("[libmpv] Playback ended: {reason:?}, {error:?}");
+                }
+
+                Event::Shutdown => {
+                    println!("[libmpv] Shutting down");
+                }
+
+                _ => {}
+            }
+        }
     }
 }

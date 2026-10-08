@@ -43,10 +43,6 @@ impl EmbeddedPlayerController {
             .as_ref()
             .ok_or("Embedded player is not initialized")?;
 
-        if self.current_source.as_deref() == Some(source) {
-            return Ok(());
-        }
-
         player.load(source)?;
 
         self.current_source = Some(source.to_string());
@@ -144,6 +140,25 @@ impl EmbeddedPlayerController {
 
         self.current_source = None;
         self.was_on_watch_page = false;
+    }
+
+    pub fn poll_events(&self) {
+        if let Some(player) = self.player.as_ref() {
+            player.poll_events();
+        }
+    }
+
+    pub fn replay(&mut self) -> Result<(), String> {
+        let source = self.current_source.clone().ok_or("No media loaded")?;
+
+        let player = self.player.as_ref().ok_or("Player not initialized")?;
+
+        player.load(&source)?;
+        player.play()?;
+
+        println!("[MutsukiTube] Replaying current video");
+
+        Ok(())
     }
 }
 
