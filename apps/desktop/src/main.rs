@@ -1,3 +1,5 @@
+mod app_context;
+mod handlers;
 mod state;
 mod thumbnail;
 mod thumbnail_ui;
@@ -10,11 +12,9 @@ use std::{
 
 use mutsukitube_core::{ProviderError, Video, VideoProvider};
 
-use mutsukitube_player::ExternalMpvPlayer;
-
 use mutsukitube_storage::{
     add_to_playlist, create_playlist, get_favorites, get_history, get_playlist_names,
-    get_playlist_videos, get_provider_mode, save_video, set_provider_mode, toggle_favorite,
+    get_playlist_videos, get_provider_mode, set_provider_mode, toggle_favorite,
 };
 
 use mutsukitube_youtube::{NativeYoutubeProvider, ProviderMode, SearchPage, YtDlpProvider};
@@ -28,6 +28,8 @@ use rusqlite;
 use ui_models::video_to_ui;
 
 use thumbnail_ui::{ThumbnailTarget, queue_thumbnails};
+
+use app_context::AppContext;
 
 slint::include_modules!();
 
@@ -274,6 +276,11 @@ fn main() -> Result<(), slint::PlatformError> {
         provider_mode: saved_provider.clone(),
         ..AppState::default()
     }));
+
+    let context = AppContext {
+        state: state.clone(),
+        handle: tokio_handle.clone(),
+    };
 
     ui.set_provider_mode(saved_provider.into());
 
@@ -540,52 +547,6 @@ fn main() -> Result<(), slint::PlatformError> {
             });
         });
     }
-
-    // ========================================
-    // OPEN VIDEO + SAVE HISTORY
-    // ========================================
-    {
-        let weak = ui.as_weak();
-        let state = state.clone();
-        let handle = tokio_handle.clone();
-
-        ui.on_open_video(move |video_id| {
-            let video = state
-                .lock()
-                .ok()
-                .and_then(|s| find_video(&s, video_id.as_str()));
-
-            let Some(video) = video else {
-                return;
-            };
-
-            if let Some(ui) = weak.upgrade() {
-                ui.set_selected_video_id(video.id.clone().into());
-
-                ui.set_selected_video_title(video.title.clone().into());
-
-                ui.set_selected_video_channel(video.channel.clone().into());
-
-                ui.set_current_page("watch".into());
-            }
-
-            // Menyimpan metadata video secara asynchronous.
-            handle.spawn_blocking(move || {
-                if let Err(error) = save_video(&video) {
-                    eprintln!("[MutsukiTube] Failed to save history: {error}");
-                }
-            });
-        });
-    }
-
-    // ========================================
-    // PLAY VIDEO
-    // ========================================
-    ui.on_play_video(move |video_id| {
-        if let Err(error) = ExternalMpvPlayer::play_youtube(video_id.as_str()) {
-            eprintln!("Player error: {error}");
-        }
-    });
 
     // ========================================
     // SHOW HISTORY
@@ -902,6 +863,8 @@ fn main() -> Result<(), slint::PlatformError> {
             eprintln!("[MutsukiTube] Failed to load playlists: {error}");
         }
     }
+
+    handlers::player::register(&ui, &context);
 
     ui.run()
 }
