@@ -1,0 +1,86 @@
+import {
+    SearchPage
+} from "pages/search-page.slint";
+
+import {
+    WatchPage
+} from "pages/watch-page.slint";
+
+import {
+    VideoItem
+} from "components/video-card.slint";
+
+export component AppWindow inherits Window {
+    title: "MutsukiTube";
+
+    width: 1200px;
+    height: 760px;
+
+    in-out property <string>
+        current-page: "search";
+
+    in-out property <[VideoItem]>
+        videos;
+
+    in-out property <bool>
+        loading: false;
+
+    in-out property <string>
+        status-text: "";
+
+    in-out property <string>
+        selected-video-id: "";
+
+    in-out property <string>
+        selected-video-title: "";
+
+    in-out property <string>
+        selected-video-channel: "";
+
+    callback search(string);
+
+    callback open-video(string);
+
+    callback play-video(string);
+
+    if root.current-page == "search" :
+        SearchPage {
+            videos:
+                root.videos;
+
+            loading:
+                root.loading;
+
+            status-text:
+                root.status-text;
+
+            search(query) => {
+                root.search(query);
+            }
+
+            open-video(id) => {
+                root.open-video(id);
+            }
+        }
+
+    if root.current-page == "watch" :
+        WatchPage {
+            video-id:
+                root.selected-video-id;
+
+            video-title:
+                root.selected-video-title;
+
+            channel:
+                root.selected-video-channel;
+
+            back => {
+                root.current-page =
+                    "search";
+            }
+
+            play(id) => {
+                root.play-video(id);
+            }
+        }
+}

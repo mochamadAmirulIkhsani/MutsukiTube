@@ -1,0 +1,93 @@
+import {
+    Button,
+    VerticalBox,
+    HorizontalBox
+} from "std-widgets.slint";
+
+export component WatchPage inherits Rectangle {
+    in property <string>
+        video-title;
+
+    in property <string>
+        channel;
+
+    in property <string>
+        video-id;
+
+    callback back();
+
+    callback play(string);
+
+    background: #0f0f0f;
+
+    VerticalBox {
+        padding: 20px;
+        spacing: 16px;
+
+        HorizontalBox {
+            Button {
+                text: "← Back";
+
+                clicked => {
+                    root.back();
+                }
+            }
+        }
+
+        Rectangle {
+            height: 430px;
+
+            background: #050505;
+
+            border-radius: 10px;
+
+            VerticalLayout {
+                alignment: center;
+
+                Text {
+                    text:
+                        "Video Player";
+
+                    horizontal-alignment:
+                        center;
+
+                    color: #777777;
+
+                    font-size: 28px;
+                }
+
+                Button {
+                    text:
+                        "Play with mpv";
+
+                    clicked => {
+                        root.play(
+                            root.video-id
+                        );
+                    }
+                }
+            }
+        }
+
+        Text {
+            text:
+                root.video-title;
+
+            color: white;
+
+            font-size: 23px;
+            font-weight: 700;
+
+            wrap: word-wrap;
+        }
+
+        Text {
+            text:
+                root.channel;
+
+            color: #aaaaaa;
+
+            font-size: 16px;
+        }
+    }
+}

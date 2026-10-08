@@ -1,0 +1,90 @@
+export struct VideoItem {
+    id: string,
+    title: string,
+    channel: string,
+    duration: string,
+    thumbnail: image,
+}
+
+export component VideoCard inherits Rectangle {
+    in property <VideoItem> video;
+
+    callback clicked(string);
+
+    height: 118px;
+
+    border-radius: 10px;
+
+    background:
+        touch.has-hover
+        ? #252525
+        : #181818;
+
+    touch := TouchArea {
+        clicked => {
+            root.clicked(
+                root.video.id
+            );
+        }
+    }
+
+    HorizontalLayout {
+        padding: 10px;
+        spacing: 14px;
+
+        Rectangle {
+            width: 170px;
+
+            border-radius: 8px;
+
+            clip: true;
+
+            background: #303030;
+
+            Image {
+                source:
+                    root.video.thumbnail;
+
+                width: 100%;
+                height: 100%;
+
+                image-fit: cover;
+            }
+        }
+
+        VerticalLayout {
+            padding-top: 7px;
+            spacing: 7px;
+
+            Text {
+                text:
+                    root.video.title;
+
+                color: white;
+
+                font-size: 17px;
+                font-weight: 600;
+
+                wrap: word-wrap;
+            }
+
+            Text {
+                text:
+                    root.video.channel;
+
+                color: #aaaaaa;
+
+                font-size: 14px;
+            }
+
+            Text {
+                text:
+                    root.video.duration;
+
+                color: #888888;
+
+                font-size: 13px;
+            }
+        }
+    }
+}

@@ -1,0 +1,113 @@
+import {
+    Button,
+    LineEdit,
+    VerticalBox,
+    HorizontalBox,
+    ScrollView,
+    Spinner
+} from "std-widgets.slint";
+
+import {
+    VideoCard,
+    VideoItem
+} from "../components/video-card.slint";
+
+export component SearchPage inherits Rectangle {
+    in property <[VideoItem]> videos;
+
+    in property <bool> loading;
+
+    in property <string>
+        status-text;
+
+    callback search(string);
+
+    callback open-video(string);
+
+    background: #0f0f0f;
+
+    VerticalBox {
+        padding: 20px;
+        spacing: 15px;
+
+        Text {
+            text: "MutsukiTube";
+
+            color: white;
+
+            font-size: 27px;
+            font-weight: 700;
+        }
+
+        HorizontalBox {
+            spacing: 8px;
+
+            search-box := LineEdit {
+                placeholder-text:
+                    "Search YouTube...";
+
+                accepted => {
+                    root.search(
+                        search-box.text
+                    );
+                }
+            }
+
+            Button {
+                text: "Search";
+
+                enabled:
+                    !root.loading;
+
+                clicked => {
+                    root.search(
+                        search-box.text
+                    );
+                }
+            }
+        }
+
+        if root.loading :
+            HorizontalBox {
+                spacing: 8px;
+
+                Spinner {
+                    width: 22px;
+                    height: 22px;
+                }
+
+                Text {
+                    text: "Searching...";
+
+                    color: #aaaaaa;
+                }
+            }
+
+        if root.status-text != "" :
+            Text {
+                text:
+                    root.status-text;
+
+                color: #999999;
+            }
+
+        ScrollView {
+            VerticalLayout {
+                spacing: 8px;
+
+                for video
+                    in root.videos :
+
+                    VideoCard {
+                        video: video;
+
+                        clicked(id) => {
+                            root.open-video(
+                                id
+                            );
+                        }
+                    }
+            }
+        }
+    }
+}
