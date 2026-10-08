@@ -1,13 +1,9 @@
+
 import { SearchPage } from "pages/search-page.slint";
-
 import { WatchPage } from "pages/watch-page.slint";
-
 import { VideoItem } from "components/video-card.slint";
-
 import { HistoryPage } from "pages/history-page.slint";
-
 import { SettingsPage } from "pages/settings-page.slint";
-
 import { LibraryPage } from "pages/library-page.slint";
 
 export component AppWindow inherits Window {
@@ -16,25 +12,44 @@ export component AppWindow inherits Window {
     width: 1200px;
     height: 760px;
 
+    // ========================================
+    // SEARCH
+    // ========================================
+
     in-out property <string> current-page: "search";
     in-out property <[VideoItem]> videos;
 
     in-out property <bool> loading: false;
     in-out property <bool> loading-more: false;
     in-out property <bool> has-more: false;
-
     in-out property <string> status-text: "";
+
+    // ========================================
+    // SELECTED VIDEO
+    // ========================================
 
     in-out property <string> selected-video-id: "";
     in-out property <string> selected-video-title: "";
     in-out property <string> selected-video-channel: "";
 
+    // ========================================
+    // HISTORY
+    // ========================================
+
     in-out property <[VideoItem]> history-videos;
     in-out property <bool> history-loading: false;
     in-out property <string> history-status: "";
 
+    // ========================================
+    // SETTINGS
+    // ========================================
+
     in-out property <string> provider-mode: "auto";
     in-out property <string> settings-status: "";
+
+    // ========================================
+    // LIBRARY
+    // ========================================
 
     in-out property <[VideoItem]> library-videos;
     in-out property <[string]> playlist-names;
@@ -43,9 +58,12 @@ export component AppWindow inherits Window {
     in-out property <string> selected-playlist: "";
 
     in-out property <bool> library-loading: false;
-
     in-out property <string> library-status: "";
     in-out property <string> watch-library-status: "";
+
+    // ========================================
+    // EMBEDDED PLAYER STATE
+    // ========================================
 
     in-out property <bool> player-ready: false;
     in-out property <bool> player-paused: true;
@@ -54,35 +72,52 @@ export component AppWindow inherits Window {
     in-out property <float> playback-duration: 0;
     in-out property <float> playback-volume: 70;
 
+    // ========================================
+    // CALLBACKS
+    // ========================================
+
     callback save-provider(string);
     callback search(string);
     callback open-video(string);
     callback play-video(string);
     callback load-more();
+
     callback show-history();
     callback refresh-history();
+
     callback show-library();
     callback refresh-library();
     callback select-playlist(string);
     callback create-playlist(string);
+
     callback toggle-favorite();
     callback add-to-playlist(string);
+
     callback toggle-playback();
     callback stop-playback();
     callback seek-playback(float);
     callback change-volume(float);
 
+    // ========================================
+    // RESPONSIVE VIDEO GEOMETRY
+    // ========================================
+
     out property <float> video-x:
-    watch-page.video-surface-x / 1px;
+        watch-page.video-surface-x / 1px;
 
     out property <float> video-y:
-    watch-page.video-surface-y / 1px;
+        watch-page.video-surface-y / 1px;
 
     out property <float> video-width:
-    watch-page.video-surface-width / 1px;
+        watch-page.video-surface-width / 1px;
 
     out property <float> video-height:
-    watch-page.video-surface-height / 1px;
+        watch-page.video-surface-height / 1px;
+
+    // ========================================
+    // SEARCH PAGE
+    // ========================================
+
     if root.current-page == "search": SearchPage {
         videos: root.videos;
         loading: root.loading;
@@ -119,6 +154,10 @@ export component AppWindow inherits Window {
             root.show-library();
         }
     }
+
+    // ========================================
+    // WATCH PAGE
+    // ========================================
 
     watch-page := WatchPage {
         visible: root.current-page == "watch";
@@ -170,6 +209,10 @@ export component AppWindow inherits Window {
         }
     }
 
+    // ========================================
+    // HISTORY PAGE
+    // ========================================
+
     if root.current-page == "history": HistoryPage {
         videos: root.history-videos;
         loading: root.history-loading;
@@ -188,6 +231,10 @@ export component AppWindow inherits Window {
         }
     }
 
+    // ========================================
+    // SETTINGS PAGE
+    // ========================================
+
     if root.current-page == "settings": SettingsPage {
         provider-mode: root.provider-mode;
         status-text: root.settings-status;
@@ -200,6 +247,10 @@ export component AppWindow inherits Window {
             root.save-provider(mode);
         }
     }
+
+    // ========================================
+    // LIBRARY PAGE
+    // ========================================
 
     if root.current-page == "library": LibraryPage {
         videos: root.library-videos;

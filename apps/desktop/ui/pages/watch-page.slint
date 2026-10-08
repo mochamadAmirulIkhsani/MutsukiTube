@@ -1,32 +1,19 @@
-
 import {
     Button,
     Slider,
     VerticalBox,
     HorizontalBox,
     ComboBox,
-    ScrollView,
 } from "std-widgets.slint";
 
 export component WatchPage inherits Rectangle {
-    // ==========================================
-    // VIDEO INFORMATION
-    // ==========================================
 
     in property <string> video-title;
     in property <string> channel;
     in property <string> video-id;
 
-    // ==========================================
-    // LIBRARY
-    // ==========================================
-
     in property <[string]> playlists;
     in property <string> library-status: "";
-
-    // ==========================================
-    // PLAYER STATE
-    // ==========================================
 
     in property <bool> player-ready: false;
     in property <bool> player-paused: true;
@@ -36,29 +23,28 @@ export component WatchPage inherits Rectangle {
     in property <float> playback-volume: 70;
 
     out property <length> video-surface-x:
-    video-surface.absolute-position.x;
+        video-surface.absolute-position.x;
 
     out property <length> video-surface-y:
-    video-surface.absolute-position.y;
+        video-surface.absolute-position.y;
 
     out property <length> video-surface-width:
-    video-surface.width;
+        video-surface.width;
 
     out property <length> video-surface-height:
-    video-surface.height;
+        video-surface.height;
 
     callback back();
-
     callback play(string);
+
+    callback toggle-favorite();
+    callback add-to-playlist(string);
 
     callback toggle-playback();
     callback stop-playback();
 
     callback seek-playback(float);
     callback change-volume(float);
-
-    callback toggle-favorite();
-    callback add-to-playlist(string);
 
     background: #0f0f0f;
 
@@ -99,7 +85,10 @@ export component WatchPage inherits Rectangle {
             border-radius: 8px;
 
             Text {
-                text: root.player-ready ? "" : "Video Player";
+                text: root.player-ready
+                    ? ""
+                    : "Video Player";
+
                 color: #777777;
                 horizontal-alignment: center;
                 vertical-alignment: center;
@@ -111,7 +100,6 @@ export component WatchPage inherits Rectangle {
 
             Button {
                 text: "Play Video";
-
                 enabled: root.video-id != "";
 
                 clicked => {
@@ -197,7 +185,6 @@ export component WatchPage inherits Rectangle {
 
             Button {
                 text: "■ Stop";
-
                 enabled: root.player-ready;
 
                 clicked => {
@@ -212,7 +199,6 @@ export component WatchPage inherits Rectangle {
 
             Text {
                 text: "Volume";
-
                 color: white;
                 vertical-alignment: center;
             }
@@ -223,7 +209,6 @@ export component WatchPage inherits Rectangle {
                 step: 1;
 
                 value: root.playback-volume;
-
                 enabled: root.player-ready;
 
                 horizontal-stretch: 1;
@@ -244,17 +229,14 @@ export component WatchPage inherits Rectangle {
 
         Text {
             text: root.video-title;
-
             color: white;
             font-size: 23px;
             font-weight: 700;
-
             wrap: word-wrap;
         }
 
         Text {
             text: root.channel;
-
             color: #aaaaaa;
             font-size: 16px;
         }
@@ -272,7 +254,6 @@ export component WatchPage inherits Rectangle {
 
             playlist-picker := ComboBox {
                 model: root.playlists;
-
                 enabled: root.playlists.length > 0;
             }
 
@@ -291,10 +272,8 @@ export component WatchPage inherits Rectangle {
 
         if root.library-status != "": Text {
             text: root.library-status;
-
             color: #aaaaaa;
             font-size: 14px;
-
             wrap: word-wrap;
         }
 
