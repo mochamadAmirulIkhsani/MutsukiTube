@@ -21,3 +21,6 @@ Desktop.ini
 .env.*
 !.env.example
 
+# Native libmpv binary
+/vendor/libmpv/windows-x64/*.dll
+/vendor/libmpv/windows-x64/*.lib
