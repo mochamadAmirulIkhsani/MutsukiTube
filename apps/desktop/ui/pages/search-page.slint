@@ -14,15 +14,14 @@ import {
 
 export component SearchPage inherits Rectangle {
     in property <[VideoItem]> videos;
-
     in property <bool> loading;
-
-    in property <string>
-        status-text;
+    in property <bool> loading-more;
+    in property <bool> has-more;
+    in property <string> status-text;
 
     callback search(string);
-
     callback open-video(string);
+    callback load-more();
 
     background: #0f0f0f;
 
@@ -32,9 +31,7 @@ export component SearchPage inherits Rectangle {
 
         Text {
             text: "MutsukiTube";
-
             color: white;
-
             font-size: 27px;
             font-weight: 700;
         }
@@ -43,70 +40,65 @@ export component SearchPage inherits Rectangle {
             spacing: 8px;
 
             search-box := LineEdit {
-                placeholder-text:
-                    "Search YouTube...";
+                placeholder-text: "Search YouTube...";
 
                 accepted => {
-                    root.search(
-                        search-box.text
-                    );
+                    root.search(search-box.text);
                 }
             }
 
             Button {
                 text: "Search";
-
-                enabled:
-                    !root.loading;
+                enabled: !root.loading;
 
                 clicked => {
-                    root.search(
-                        search-box.text
-                    );
+                    root.search(search-box.text);
                 }
             }
         }
 
-        if root.loading :
-            HorizontalBox {
-                spacing: 8px;
+        if root.loading : HorizontalBox {
+            spacing: 8px;
 
-                Spinner {
-                    width: 22px;
-                    height: 22px;
-                }
-
-                Text {
-                    text: "Searching...";
-
-                    color: #aaaaaa;
-                }
+            Spinner {
+                width: 22px;
+                height: 22px;
             }
 
-        if root.status-text != "" :
             Text {
-                text:
-                    root.status-text;
-
-                color: #999999;
+                text: "Searching...";
+                color: #aaaaaa;
             }
+        }
+
+        if root.status-text != "" : Text {
+            text: root.status-text;
+            color: #999999;
+        }
 
         ScrollView {
             VerticalLayout {
                 spacing: 8px;
 
-                for video
-                    in root.videos :
+                for video in root.videos : VideoCard {
+                    video: video;
 
-                    VideoCard {
-                        video: video;
-
-                        clicked(id) => {
-                            root.open-video(
-                                id
-                            );
-                        }
+                    clicked(id) => {
+                        root.open-video(id);
                     }
+                }
+
+                if root.has-more : Button {
+                    text: root.loading-more
+                        ? "Loading more..."
+                        : "Load More Videos";
+
+                    enabled: !root.loading-more && !root.loading;
+
+                    clicked => {
+                        root.load-more();
+                    }
+                }
             }
         }
     }
