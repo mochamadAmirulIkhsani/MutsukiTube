@@ -99,113 +99,6 @@ fn main() -> Result<(), slint::PlatformError> {
 
     ui.set_videos(ModelRc::from(video_model));
 
-    // ========================================
-    // TOGGLE FAVORITE
-    // ========================================
-    {
-        let weak = ui.as_weak();
-        let state = state.clone();
-        let handle = tokio_handle.clone();
-
-        ui.on_toggle_favorite(move || {
-            let Some(ui) = weak.upgrade() else {
-                return;
-            };
-
-            let video_id = ui.get_selected_video_id().to_string();
-
-            let video = state.lock().ok().and_then(|s| find_video(&s, &video_id));
-
-            let Some(video) = video else {
-                ui.set_watch_library_status("Video not found".into());
-                return;
-            };
-
-            ui.set_watch_library_status("Saving favorite...".into());
-
-            let weak = weak.clone();
-
-            handle.spawn_blocking(move || {
-                let result = toggle_favorite(&video);
-
-                let _ = weak.upgrade_in_event_loop(move |ui| {
-                    if ui.get_selected_video_id().as_str() != video_id {
-                        return;
-                    }
-
-                    match result {
-                        Ok(true) => {
-                            ui.set_watch_library_status("Added to Favorites".into());
-                        }
-
-                        Ok(false) => {
-                            ui.set_watch_library_status("Removed from Favorites".into());
-                        }
-
-                        Err(error) => {
-                            ui.set_watch_library_status(format!("Favorite error: {error}").into());
-                        }
-                    }
-                });
-            });
-        });
-    }
-
-    // ========================================
-    // ADD VIDEO TO PLAYLIST
-    // ========================================
-    {
-        let weak = ui.as_weak();
-        let state = state.clone();
-        let handle = tokio_handle.clone();
-
-        ui.on_add_to_playlist(move |name| {
-            let playlist_name = name.to_string();
-
-            let Some(ui) = weak.upgrade() else {
-                return;
-            };
-
-            if playlist_name.is_empty() {
-                ui.set_watch_library_status("Select a playlist first".into());
-                return;
-            }
-
-            let video_id = ui.get_selected_video_id().to_string();
-
-            let video = state.lock().ok().and_then(|s| find_video(&s, &video_id));
-
-            let Some(video) = video else {
-                ui.set_watch_library_status("Video not found".into());
-                return;
-            };
-
-            ui.set_watch_library_status("Adding to playlist...".into());
-
-            let weak = weak.clone();
-
-            handle.spawn_blocking(move || {
-                let result = add_to_playlist(&playlist_name, &video);
-
-                let _ = weak.upgrade_in_event_loop(move |ui| {
-                    if ui.get_selected_video_id().as_str() != video_id {
-                        return;
-                    }
-
-                    match result {
-                        Ok(()) => {
-                            ui.set_watch_library_status("Video saved to playlist".into());
-                        }
-
-                        Err(error) => {
-                            ui.set_watch_library_status(format!("Playlist error: {error}").into());
-                        }
-                    }
-                });
-            });
-        });
-    }
-
     match get_playlist_names() {
         Ok(names) => {
             let items = names
@@ -229,6 +122,9 @@ fn main() -> Result<(), slint::PlatformError> {
 
     #[cfg(not(target_os = "windows"))]
     handlers::player::register(&ui, &context);
+
+    #[cfg(target_os = "windows")]
+    handlers::player_controls::register(&ui, native_session.clone());
 
     handlers::history::register(&ui, &context);
     handlers::settings::register(&ui, &context);
@@ -260,6 +156,28 @@ fn main() -> Result<(), slint::PlatformError> {
                 let mut session = session_for_timer.borrow_mut();
                 session.controller.poll_events();
 
+                let ready = session.controller.is_initialized();
+
+                ui.set_player_ready(ready);
+
+                if ready {
+                    let position = session.controller.position().unwrap_or(0.0);
+
+                    let duration = session.controller.duration().unwrap_or(0.0);
+
+                    let paused = session.controller.is_paused().unwrap_or(true);
+
+                    if position.is_finite() && position >= 0.0 {
+                        ui.set_playback_position(position as f32);
+                    }
+
+                    if duration.is_finite() && duration >= 0.0 {
+                        ui.set_playback_duration(duration as f32);
+                    }
+
+                    ui.set_player_paused(paused);
+                }
+
                 let position = session.controller.position();
                 let duration = session.controller.duration();
 
@@ -289,6 +207,10 @@ fn main() -> Result<(), slint::PlatformError> {
                     if let Some(surface) = session.surface.as_ref() {
                         surface.hide();
                     }
+
+                    ui.set_player_paused(true);
+                    ui.set_playback_position(0.0);
+                    ui.set_playback_duration(0.0);
 
                     return;
                 }
@@ -327,20 +249,34 @@ fn main() -> Result<(), slint::PlatformError> {
                         None => return,
                     };
 
-                    if let Err(error) = session.controller.initialize(hwnd) {
-                        eprintln!("[MutsukiTube] Player init error: {error}");
+                    match session.controller.initialize(hwnd) {
+                        Ok(()) => {
+                            println!("[MutsukiTube] Embedded player ready");
 
-                        if let Some(video_id) = session.pending_video_id.take() {
-                            if let Err(fallback_error) = ExternalMpvPlayer::play_youtube(&video_id)
-                            {
-                                eprintln!(
-                                    "[MutsukiTube] Fallback error: \
-                                 {fallback_error}"
-                                );
+                            let initial_volume = ui.get_playback_volume() as f64;
+
+                            if let Err(error) = session.controller.set_volume(initial_volume) {
+                                eprintln!("[MutsukiTube] Initial volume error: {error}");
                             }
+
+                            ui.set_player_ready(true);
                         }
 
-                        return;
+                        Err(error) => {
+                            eprintln!("[MutsukiTube] Player init error: {error}");
+
+                            ui.set_player_ready(false);
+
+                            if let Some(video_id) = session.pending_video_id.take() {
+                                if let Err(fallback_error) =
+                                    ExternalMpvPlayer::play_youtube(&video_id)
+                                {
+                                    eprintln!("[MutsukiTube] Fallback error: {fallback_error}");
+                                }
+                            }
+
+                            return;
+                        }
                     }
                 }
 

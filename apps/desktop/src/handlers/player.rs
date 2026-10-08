@@ -1,7 +1,6 @@
 use slint::ComponentHandle;
 
 use mutsukitube_core::Video;
-use mutsukitube_player::ExternalMpvPlayer;
 use mutsukitube_storage::save_video;
 
 use crate::{AppWindow, app_context::AppContext, state::AppState};

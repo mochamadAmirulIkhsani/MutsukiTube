@@ -1,28 +1,95 @@
+
 import {
     Button,
+    Slider,
     VerticalBox,
     HorizontalBox,
     ComboBox,
+    ScrollView,
 } from "std-widgets.slint";
 
 export component WatchPage inherits Rectangle {
+    // ==========================================
+    // VIDEO INFORMATION
+    // ==========================================
+
     in property <string> video-title;
     in property <string> channel;
     in property <string> video-id;
 
+    // ==========================================
+    // LIBRARY
+    // ==========================================
+
     in property <[string]> playlists;
     in property <string> library-status: "";
 
+    // ==========================================
+    // PLAYER STATE
+    // ==========================================
+
+    in property <bool> player-ready: false;
+    in property <bool> player-paused: true;
+
+    in property <float> playback-position: 0;
+    in property <float> playback-duration: 0;
+    in property <float> playback-volume: 70;
+
+    // ==========================================
+    // VIDEO SURFACE GEOMETRY
+    // For Phase 17F
+    // ==========================================
+
+    out property <length> video-surface-x:
+        video-surface.absolute-position.x;
+
+    out property <length> video-surface-y:
+        video-surface.absolute-position.y;
+
+    out property <length> video-surface-width:
+        video-surface.width;
+
+    out property <length> video-surface-height:
+        video-surface.height;
+
+    // ==========================================
+    // NAVIGATION CALLBACKS
+    // ==========================================
+
     callback back();
+
+    // ==========================================
+    // VIDEO CALLBACKS
+    // ==========================================
+
     callback play(string);
+
+    callback toggle-playback();
+    callback stop-playback();
+
+    callback seek-playback(float);
+    callback change-volume(float);
+
+    // ==========================================
+    // LIBRARY CALLBACKS
+    // ==========================================
+
     callback toggle-favorite();
     callback add-to-playlist(string);
+
+    // ==========================================
+    // ROOT STYLE
+    // ==========================================
 
     background: #0f0f0f;
 
     VerticalBox {
         padding: 20px;
         spacing: 16px;
+
+        // ======================================
+        // HEADER
+        // ======================================
 
         HorizontalBox {
             spacing: 12px;
@@ -40,48 +107,214 @@ export component WatchPage inherits Rectangle {
                 color: white;
                 font-size: 22px;
                 font-weight: 700;
+                vertical-alignment: center;
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+                background: transparent;
             }
         }
 
-        Rectangle {
-            height: 430px;
-            background: #050505;
-            border-radius: 10px;
+        // ======================================
+        // NATIVE VIDEO SURFACE
+        // ======================================
 
-            VerticalLayout {
-                alignment: center;
-                spacing: 20px;
+        video-surface := Rectangle {
+            height: 360px;
+            horizontal-stretch: 1;
+
+            background: #050505;
+            border-radius: 8px;
+
+            // Placeholder only.
+            // The Win32 child HWND will render
+            // on top of this rectangle.
+            Text {
+                text: root.player-ready
+                    ? ""
+                    : "Video Player";
+
+                color: #777777;
+                font-size: 22px;
+
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        // ======================================
+        // LOAD VIDEO BUTTON
+        // ======================================
+
+        HorizontalBox {
+            spacing: 12px;
+
+            Button {
+                text: "Play Video";
+
+                enabled: root.video-id != "";
+
+                clicked => {
+                    root.play(root.video-id);
+                }
+            }
+
+            Text {
+                text: root.player-ready
+                    ? "Embedded libmpv ready"
+                    : "Initializing player...";
+
+                color: #aaaaaa;
+                vertical-alignment: center;
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+                background: transparent;
+            }
+        }
+
+        // ======================================
+        // VIDEO SEEK BAR
+        // ======================================
+
+        VerticalBox {
+            spacing: 6px;
+
+            Slider {
+                minimum: 0;
+
+                maximum: root.playback-duration > 0
+                    ? root.playback-duration
+                    : 1;
+
+                value: root.playback-position;
+
+                enabled: root.player-ready
+                    && root.playback-duration > 0;
+
+                released(value) => {
+                    root.seek-playback(value);
+                }
+            }
+
+            HorizontalBox {
+                spacing: 8px;
 
                 Text {
-                    text: "Video Player";
-                    horizontal-alignment: center;
-                    color: #777777;
-                    font-size: 28px;
+                    text: root.playback-position.to-fixed(0)
+                        + "s";
+
+                    color: #aaaaaa;
+                    font-size: 13px;
                 }
 
-                Button {
-                    text: "Play with mpv";
+                Rectangle {
+                    horizontal-stretch: 1;
+                    background: transparent;
+                }
 
-                    clicked => {
-                        root.play(root.video-id);
-                    }
+                Text {
+                    text: root.playback-duration.to-fixed(0)
+                        + "s";
+
+                    color: #aaaaaa;
+                    font-size: 13px;
                 }
             }
         }
+
+        // ======================================
+        // PLAYBACK CONTROLS
+        // ======================================
+
+        HorizontalBox {
+            spacing: 12px;
+
+            Button {
+                text: root.player-paused
+                    ? "▶ Play"
+                    : "⏸ Pause";
+
+                enabled: root.player-ready;
+
+                clicked => {
+                    root.toggle-playback();
+                }
+            }
+
+            Button {
+                text: "■ Stop";
+
+                enabled: root.player-ready;
+
+                clicked => {
+                    root.stop-playback();
+                }
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+                background: transparent;
+            }
+
+            Text {
+                text: "Volume";
+
+                color: white;
+                vertical-alignment: center;
+            }
+
+            Slider {
+                minimum: 0;
+                maximum: 100;
+                step: 1;
+
+                value: root.playback-volume;
+
+                enabled: root.player-ready;
+
+                horizontal-stretch: 1;
+
+                changed(value) => {
+                    root.change-volume(value);
+                }
+            }
+
+            Text {
+                text: root.playback-volume.to-fixed(0)
+                    + "%";
+
+                color: #aaaaaa;
+                vertical-alignment: center;
+            }
+        }
+
+        // ======================================
+        // VIDEO INFORMATION
+        // ======================================
 
         Text {
             text: root.video-title;
+
             color: white;
             font-size: 23px;
             font-weight: 700;
+
             wrap: word-wrap;
         }
 
         Text {
             text: root.channel;
+
             color: #aaaaaa;
             font-size: 16px;
         }
+
+        // ======================================
+        // LIBRARY ACTIONS
+        // ======================================
 
         HorizontalBox {
             spacing: 12px;
@@ -96,6 +329,7 @@ export component WatchPage inherits Rectangle {
 
             playlist-picker := ComboBox {
                 model: root.playlists;
+
                 enabled: root.playlists.length > 0;
             }
 
@@ -112,12 +346,22 @@ export component WatchPage inherits Rectangle {
             }
         }
 
+        // ======================================
+        // LIBRARY STATUS
+        // ======================================
+
         if root.library-status != "": Text {
             text: root.library-status;
+
             color: #aaaaaa;
             font-size: 14px;
+
             wrap: word-wrap;
         }
+
+        // ======================================
+        // REMAINING SPACE
+        // ======================================
 
         Rectangle {
             vertical-stretch: 1;

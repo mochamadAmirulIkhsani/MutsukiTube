@@ -47,6 +47,13 @@ export component AppWindow inherits Window {
     in-out property <string> library-status: "";
     in-out property <string> watch-library-status: "";
 
+    in-out property <bool> player-ready: false;
+    in-out property <bool> player-paused: true;
+
+    in-out property <float> playback-position: 0;
+    in-out property <float> playback-duration: 0;
+    in-out property <float> playback-volume: 70;
+
     callback save-provider(string);
     callback search(string);
     callback open-video(string);
@@ -60,6 +67,10 @@ export component AppWindow inherits Window {
     callback create-playlist(string);
     callback toggle-favorite();
     callback add-to-playlist(string);
+    callback toggle-playback();
+    callback stop-playback();
+    callback seek-playback(float);
+    callback change-volume(float);
 
     if root.current-page == "search": SearchPage {
         videos: root.videos;
@@ -99,21 +110,69 @@ export component AppWindow inherits Window {
     }
 
     if root.current-page == "watch": WatchPage {
-        video-id: root.selected-video-id;
+    // ======================================
+    // VIDEO INFORMATION
+    // ======================================
+
+    video-id: root.selected-video-id;
         video-title: root.selected-video-title;
         channel: root.selected-video-channel;
-        playlists: root.playlist-names;
+
+        // ======================================
+    // LIBRARY
+    // ======================================
+
+    playlists: root.playlist-names;
         library-status: root.watch-library-status;
 
-        back => {
+        // ======================================
+    // PLAYER STATE
+    // ======================================
+
+    player-ready: root.player-ready;
+        player-paused: root.player-paused;
+
+        playback-position: root.playback-position;
+        playback-duration: root.playback-duration;
+        playback-volume: root.playback-volume;
+
+        // ======================================
+    // NAVIGATION
+    // ======================================
+
+    back => {
             root.current-page = "search";
         }
 
-        play(id) => {
+    // ======================================
+    // VIDEO PLAYBACK
+    // ======================================
+
+    play(id) => {
             root.play-video(id);
         }
 
-        toggle-favorite => {
+        toggle-playback => {
+            root.toggle-playback();
+        }
+
+        stop-playback => {
+            root.stop-playback();
+        }
+
+        seek-playback(value) => {
+            root.seek-playback(value);
+        }
+
+        change-volume(value) => {
+            root.change-volume(value);
+        }
+
+    // ======================================
+    // LIBRARY ACTIONS
+    // ======================================
+
+    toggle-favorite => {
             root.toggle-favorite();
         }
 

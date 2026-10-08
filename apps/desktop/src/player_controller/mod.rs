@@ -56,6 +56,7 @@ impl EmbeddedPlayerController {
         self.player.as_ref().ok_or("Player not initialized")?.play()
     }
 
+    #[allow(dead_code)]
     pub fn pause(&self) -> Result<(), String> {
         self.player
             .as_ref()
@@ -148,6 +149,7 @@ impl EmbeddedPlayerController {
         }
     }
 
+    #[allow(dead_code)]
     pub fn replay(&mut self) -> Result<(), String> {
         let source = self.current_source.clone().ok_or("No media loaded")?;
 
@@ -159,6 +161,10 @@ impl EmbeddedPlayerController {
         println!("[MutsukiTube] Replaying current video");
 
         Ok(())
+    }
+
+    pub fn is_paused(&self) -> Option<bool> {
+        self.player.as_ref()?.is_paused().ok()
     }
 }
 
