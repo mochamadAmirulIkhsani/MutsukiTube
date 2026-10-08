@@ -15,4 +15,6 @@ pub struct AppState {
     pub loading_more: bool,
 
     pub provider_mode: String,
+
+    pub library_results: Vec<Video>,
 }

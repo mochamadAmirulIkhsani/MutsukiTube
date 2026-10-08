@@ -1,0 +1,133 @@
+import {
+    Button,
+    ComboBox,
+    LineEdit,
+    VerticalBox,
+    HorizontalBox,
+    ScrollView,
+} from "std-widgets.slint";
+
+import {
+    VideoCard,
+    VideoItem,
+} from "../components/video-card.slint";
+
+export component LibraryPage inherits Rectangle {
+    in property <[VideoItem]> videos;
+    in property <[string]> playlists;
+
+    in property <string> library-mode: "favorites";
+    in property <string> selected-playlist: "";
+    in property <string> status-text: "";
+
+    in property <bool> loading: false;
+
+    callback back();
+    callback show-favorites();
+    callback select-playlist(string);
+    callback create-playlist(string);
+    callback open-video(string);
+    callback refresh();
+
+    background: #0f0f0f;
+
+    VerticalBox {
+        padding: 20px;
+        spacing: 14px;
+
+        HorizontalBox {
+            spacing: 12px;
+
+            Button {
+                text: "Back";
+
+                clicked => {
+                    root.back();
+                }
+            }
+
+            Text {
+                text: "Your Library";
+                color: white;
+                font-size: 26px;
+                font-weight: 700;
+            }
+
+            Button {
+                text: "Refresh";
+                enabled: !root.loading;
+
+                clicked => {
+                    root.refresh();
+                }
+            }
+        }
+
+        HorizontalBox {
+            spacing: 10px;
+
+            Button {
+                text: "Favorites";
+                enabled: !root.loading;
+
+                clicked => {
+                    root.show-favorites();
+                }
+            }
+
+            ComboBox {
+                model: root.playlists;
+                current-value: root.selected-playlist;
+
+                selected(name) => {
+                    root.select-playlist(name);
+                }
+            }
+        }
+
+        HorizontalBox {
+            spacing: 10px;
+
+            playlist-name := LineEdit {
+                placeholder-text: "New playlist name";
+            }
+
+            Button {
+                text: "Create Playlist";
+
+                clicked => {
+                    root.create-playlist(playlist-name.text);
+                }
+            }
+        }
+
+        Text {
+            text: root.library-mode == "favorites"
+                ? "Favorites"
+                : "Playlist: " + root.selected-playlist;
+
+            color: white;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        if root.status-text != "": Text {
+            text: root.status-text;
+            color: #aaaaaa;
+        }
+
+        ScrollView {
+            VerticalLayout {
+                spacing: 8px;
+
+                for video in root.videos: VideoCard {
+                    video: video;
+
+                    clicked(id) => {
+                        root.open-video(id);
+                    }
+                }
+            }
+        }
+    }
+}
