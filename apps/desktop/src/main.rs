@@ -231,6 +231,10 @@ fn main() -> Result<(), slint::PlatformError> {
 
         let weak = ui.as_weak();
 
+        use std::cell::Cell;
+
+        let paused_for_navigation = Cell::new(false);
+
         let session = Rc::new(RefCell::new(NativeVideoSession::new()));
 
         let session_for_timer = session.clone();
@@ -281,8 +285,36 @@ fn main() -> Result<(), slint::PlatformError> {
 
                 if let Some(surface) = session.surface.as_ref() {
                     if is_watch {
-                        if let Err(error) = surface.set_geometry(24, 100, 640, 360) {
-                            eprintln!("[MutsukiTube] Geometry error: {error}");
+                        if let Some(surface) = session.surface.as_ref() {
+                            if is_watch {
+                                if let Err(error) = surface.set_geometry(24, 100, 640, 360) {
+                                    eprintln!("[MutsukiTube] Geometry error: {error}");
+                                }
+
+                                surface.show();
+                            } else {
+                                surface.hide();
+                                if !paused_for_navigation.get() {
+                                    if let Some(player) = session.player.as_ref() {
+                                        match player.pause() {
+                                            Ok(()) => {
+                                                paused_for_navigation.set(true);
+
+                                                println!(
+                                                    "[MutsukiTube] Playback paused: \
+                                                    leaving WatchPage"
+                                                );
+                                            }
+
+                                            Err(error) => {
+                                                eprintln!("[MutsukiTube] Pause error: {error}");
+                                            }
+                                        }
+                                    }
+                                }
+
+                                return;
+                            }
                         }
 
                         surface.show();
@@ -314,6 +346,29 @@ fn main() -> Result<(), slint::PlatformError> {
                             eprintln!("[MutsukiTube] libmpv error: {error}");
 
                             return;
+                        }
+                    }
+                }
+
+                // ======================================
+                // RESUME AFTER NAVIGATION
+                // ======================================
+
+                if paused_for_navigation.get() {
+                    if let Some(player) = session.player.as_ref() {
+                        match player.play() {
+                            Ok(()) => {
+                                paused_for_navigation.set(false);
+
+                                println!(
+                                    "[MutsukiTube] Playback resumed: \
+                                    WatchPage active"
+                                );
+                            }
+
+                            Err(error) => {
+                                eprintln!("[MutsukiTube] Resume error: {error}");
+                            }
                         }
                     }
                 }
