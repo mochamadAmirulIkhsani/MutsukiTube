@@ -6,7 +6,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use futures::future::join_all;
+use futures::stream::{self, StreamExt};
 
 use mutsukitube_core::{ProviderError, Video, VideoProvider};
 
@@ -92,54 +92,55 @@ fn queue_thumbnails(
     handle: tokio::runtime::Handle,
 ) {
     handle.spawn(async move {
-        let jobs = videos.into_iter().map(|video| {
-            let weak = weak.clone();
-            let state = state.clone();
+        stream::iter(videos)
+            .for_each_concurrent(6, |video| {
+                let weak = weak.clone();
+                let state = state.clone();
 
-            async move {
-                let bytes = download_thumbnail(&video.thumbnail).await;
-
-                let Some(bytes) = bytes else {
-                    return;
-                };
-
-                let video_id = video.id;
-
-                let _ = weak.upgrade_in_event_loop(move |ui| {
-                    let current = state
-                        .lock()
-                        .map(|s| s.search_generation)
-                        .unwrap_or_default();
-
-                    if current != generation {
-                        return;
-                    }
-
-                    let Ok(image) = slint::Image::load_from_data(&bytes, None) else {
+                async move {
+                    let Some(bytes) = download_thumbnail(&video.thumbnail).await else {
                         return;
                     };
 
-                    let model = ui.get_videos();
+                    let video_id = video.id;
 
-                    // Update hanya card yang sesuai ID.
-                    // Semua manipulasi Slint tetap di UI thread.
-                    let mut rows = (0..model.row_count())
-                        .filter_map(|i| model.row_data(i))
-                        .collect::<Vec<_>>();
+                    let _ = weak.upgrade_in_event_loop(move |ui| {
+                        let is_current = state
+                            .lock()
+                            .map(|s| s.search_generation == generation)
+                            .unwrap_or(false);
 
-                    let Some(item) = rows.iter_mut().find(|item| item.id.as_str() == video_id)
-                    else {
-                        return;
-                    };
+                        if !is_current {
+                            return;
+                        }
 
-                    item.thumbnail = image;
+                        let Ok(image) = slint::Image::load_from_data(&bytes, None) else {
+                            return;
+                        };
 
-                    ui.set_videos(ModelRc::from(Rc::new(VecModel::from(rows))));
-                });
-            }
-        });
+                        let model = ui.get_videos();
 
-        join_all(jobs).await;
+                        // Temukan video berdasarkan ID.
+                        let index = (0..model.row_count()).find(|&index| {
+                            model
+                                .row_data(index)
+                                .is_some_and(|item| item.id.as_str() == video_id)
+                        });
+
+                        let Some(index) = index else {
+                            return;
+                        };
+
+                        if let Some(mut item) = model.row_data(index) {
+                            item.thumbnail = image;
+
+                            // Update hanya satu baris.
+                            model.set_row_data(index, item);
+                        }
+                    });
+                }
+            })
+            .await;
     });
 }
 
@@ -151,6 +152,10 @@ fn main() -> Result<(), slint::PlatformError> {
     let tokio_handle = runtime.handle().clone();
 
     let state = Arc::new(Mutex::new(AppState::default()));
+
+    let video_model = Rc::new(VecModel::<VideoItem>::default());
+
+    ui.set_videos(ModelRc::from(video_model));
 
     // ========================================
     // SEARCH — FIRST PAGE
@@ -187,7 +192,14 @@ fn main() -> Result<(), slint::PlatformError> {
                 ui.set_has_more(false);
                 ui.set_status_text("".into());
 
-                ui.set_videos(ModelRc::from(Rc::new(VecModel::<VideoItem>::default())));
+                let model = ui.get_videos();
+
+                let model = model
+                    .as_any()
+                    .downcast_ref::<VecModel<VideoItem>>()
+                    .expect("Expected VecModel");
+
+                model.clear();
             }
 
             let weak = weak.clone();
@@ -225,7 +237,14 @@ fn main() -> Result<(), slint::PlatformError> {
                                 .map(|video| video_to_ui(video, slint::Image::default()))
                                 .collect::<Vec<_>>();
 
-                            ui.set_videos(ModelRc::from(Rc::new(VecModel::from(items))));
+                            let model = ui.get_videos();
+
+                            let model = model
+                                .as_any()
+                                .downcast_ref::<VecModel<VideoItem>>()
+                                .expect("Expected VecModel");
+
+                            model.set_vec(items);
 
                             ui.set_loading(false);
                             ui.set_has_more(has_more);
@@ -347,19 +366,19 @@ fn main() -> Result<(), slint::PlatformError> {
 
                             drop(s);
 
-                            let model = ui.get_videos();
-
-                            let mut items = (0..model.row_count())
-                                .filter_map(|i| model.row_data(i))
+                            let items = new_videos
+                                .iter()
+                                .map(|video| video_to_ui(video, slint::Image::default()))
                                 .collect::<Vec<_>>();
 
-                            items.extend(
-                                new_videos
-                                    .iter()
-                                    .map(|video| video_to_ui(video, slint::Image::default())),
-                            );
+                            let model = ui.get_videos();
 
-                            ui.set_videos(ModelRc::from(Rc::new(VecModel::from(items))));
+                            let model = model
+                                .as_any()
+                                .downcast_ref::<VecModel<VideoItem>>()
+                                .expect("Expected VecModel");
+
+                            model.extend(items);
 
                             ui.set_loading_more(false);
                             ui.set_has_more(has_more);
