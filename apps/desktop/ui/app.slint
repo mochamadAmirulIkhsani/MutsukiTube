@@ -9,8 +9,11 @@ import { LibraryPage } from "pages/library-page.slint";
 export component AppWindow inherits Window {
     title: "MutsukiTube";
 
-    width: 1200px;
-    height: 760px;
+    preferred-width: 1200px;
+    preferred-height: 760px;
+
+    min-width: 800px;
+    min-height: 600px;
 
     // ========================================
     // SEARCH
@@ -72,6 +75,9 @@ export component AppWindow inherits Window {
     in-out property <float> playback-duration: 0;
     in-out property <float> playback-volume: 70;
 
+    in-out property <string> playback-state: "idle";
+    in-out property <bool> fullscreen-mode: false;
+
     // ========================================
     // CALLBACKS
     // ========================================
@@ -97,6 +103,9 @@ export component AppWindow inherits Window {
     callback stop-playback();
     callback seek-playback(float);
     callback change-volume(float);
+
+    callback replay-video();
+    callback toggle-fullscreen();
 
     // ========================================
     // RESPONSIVE VIDEO GEOMETRY
@@ -159,27 +168,40 @@ export component AppWindow inherits Window {
     // WATCH PAGE
     // ========================================
 
-    watch-page := WatchPage {
+    
+watch-page := WatchPage {
         visible: root.current-page == "watch";
 
+        // Video information
         video-id: root.selected-video-id;
         video-title: root.selected-video-title;
         channel: root.selected-video-channel;
 
+        // Library
         playlists: root.playlist-names;
         library-status: root.watch-library-status;
 
+        // Embedded player
         player-ready: root.player-ready;
         player-paused: root.player-paused;
 
         playback-position: root.playback-position;
         playback-duration: root.playback-duration;
         playback-volume: root.playback-volume;
+        playback-state: root.playback-state;
 
+        // Fullscreen
+        fullscreen-mode: root.fullscreen-mode;
+
+        // Navigation
         back => {
+            if (root.fullscreen-mode) {
+                root.toggle-fullscreen();
+            }
             root.current-page = "search";
         }
 
+        // Playback
         play(id) => {
             root.play-video(id);
         }
@@ -200,6 +222,15 @@ export component AppWindow inherits Window {
             root.change-volume(value);
         }
 
+        replay => {
+            root.replay-video();
+        }
+
+        toggle-fullscreen => {
+            root.toggle-fullscreen();
+        }
+
+         // Library
         toggle-favorite => {
             root.toggle-favorite();
         }

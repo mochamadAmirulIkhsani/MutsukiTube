@@ -22,6 +22,9 @@ export component WatchPage inherits Rectangle {
     in property <float> playback-duration: 0;
     in property <float> playback-volume: 70;
 
+    in property <bool> fullscreen-mode: false;
+    in property <string> playback-state: "idle";
+
     out property <length> video-surface-x:
         video-surface.absolute-position.x;
 
@@ -46,13 +49,16 @@ export component WatchPage inherits Rectangle {
     callback seek-playback(float);
     callback change-volume(float);
 
+    callback replay();
+    callback toggle-fullscreen();
+
     background: #0f0f0f;
 
     VerticalBox {
-        padding: 20px;
-        spacing: 16px;
+        padding: root.fullscreen-mode ? 0px : 20px;
+        spacing: root.fullscreen-mode ? 4px : 16px;
 
-        HorizontalBox {
+        if !root.fullscreen-mode: HorizontalBox {
             spacing: 12px;
 
             Button {
@@ -78,24 +84,24 @@ export component WatchPage inherits Rectangle {
         }
 
         video-surface := Rectangle {
-            height: 360px;
+            min-height: root.fullscreen-mode ? 0px : 360px;
+            max-height: root.fullscreen-mode ? 10000px : 360px;
+
             horizontal-stretch: 1;
+            vertical-stretch: root.fullscreen-mode ? 1 : 0;
 
             background: #050505;
-            border-radius: 8px;
+            border-radius: root.fullscreen-mode ? 0px : 8px;
 
             Text {
-                text: root.player-ready
-                    ? ""
-                    : "Video Player";
-
+                text: root.player-ready ? "" : "Video Player";
                 color: #777777;
                 horizontal-alignment: center;
                 vertical-alignment: center;
             }
         }
 
-        HorizontalBox {
+        if !root.fullscreen-mode: HorizontalBox {
             spacing: 12px;
 
             Button {
@@ -122,10 +128,24 @@ export component WatchPage inherits Rectangle {
             }
         }
 
+        Text {
+            text: root.playback-state == "finished"
+                ? "Video selesai diputar"
+                : root.playback-state == "loading"
+                ? "Loading video..."
+                : root.playback-state == "error"
+                ? "Video gagal diputar"
+                : "";
+
+            color: #aaaaaa;
+            font-size: 14px;
+            visible: self.text != "";
+        }
+
         VerticalBox {
             spacing: 6px;
 
-            Slider {
+            seek-slider := Slider {
                 minimum: 0;
 
                 maximum: root.playback-duration > 0
@@ -146,9 +166,7 @@ export component WatchPage inherits Rectangle {
                 spacing: 8px;
 
                 Text {
-                    text: root.playback-position.to-fixed(0)
-                        + "s";
-
+                    text: root.playback-position.to-fixed(0) + "s";
                     color: #aaaaaa;
                     font-size: 13px;
                 }
@@ -159,9 +177,7 @@ export component WatchPage inherits Rectangle {
                 }
 
                 Text {
-                    text: root.playback-duration.to-fixed(0)
-                        + "s";
-
+                    text: root.playback-duration.to-fixed(0) + "s";
                     color: #aaaaaa;
                     font-size: 13px;
                 }
@@ -189,6 +205,29 @@ export component WatchPage inherits Rectangle {
 
                 clicked => {
                     root.stop-playback();
+                }
+            }
+
+            Button {
+                text: "↻ Replay";
+
+                enabled: root.playback-state == "finished"
+                    && root.video-id != "";
+
+                clicked => {
+                    root.replay();
+                }
+            }
+
+            Button {
+                text: root.fullscreen-mode
+                    ? "⤢ Exit Fullscreen"
+                    : "⛶ Fullscreen";
+
+                enabled: root.player-ready;
+
+                clicked => {
+                    root.toggle-fullscreen();
                 }
             }
 
@@ -227,7 +266,7 @@ export component WatchPage inherits Rectangle {
             }
         }
 
-        Text {
+        if !root.fullscreen-mode: Text {
             text: root.video-title;
             color: white;
             font-size: 23px;
@@ -235,13 +274,13 @@ export component WatchPage inherits Rectangle {
             wrap: word-wrap;
         }
 
-        Text {
+        if !root.fullscreen-mode: Text {
             text: root.channel;
             color: #aaaaaa;
             font-size: 16px;
         }
 
-        HorizontalBox {
+        if !root.fullscreen-mode: HorizontalBox {
             spacing: 12px;
 
             Button {
@@ -270,14 +309,14 @@ export component WatchPage inherits Rectangle {
             }
         }
 
-        if root.library-status != "": Text {
+        if !root.fullscreen-mode && root.library-status != "": Text {
             text: root.library-status;
             color: #aaaaaa;
             font-size: 14px;
             wrap: word-wrap;
         }
 
-        Rectangle {
+        if !root.fullscreen-mode: Rectangle {
             vertical-stretch: 1;
             background: transparent;
         }

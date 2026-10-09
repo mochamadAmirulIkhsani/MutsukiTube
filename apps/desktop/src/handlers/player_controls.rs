@@ -97,4 +97,39 @@ pub fn register(ui: &AppWindow, session: Rc<RefCell<NativeVideoSession>>) {
             }
         });
     }
+
+    // ===================================
+    // REPLAY
+    // ===================================
+    {
+        let session = session.clone();
+        let weak = ui.as_weak();
+
+        ui.on_replay_video(move || {
+            let Some(ui) = weak.upgrade() else {
+                return;
+            };
+
+            if ui.get_playback_state().as_str() != "finished" {
+                return;
+            }
+
+            let result = session.borrow_mut().controller.replay();
+
+            match result {
+                Ok(()) => {
+                    ui.set_playback_state("loading".into());
+                    ui.set_playback_position(0.0);
+
+                    println!("[MutsukiTube] Replay requested");
+                }
+
+                Err(error) => {
+                    eprintln!("[MutsukiTube] Replay failed: {error}");
+
+                    ui.set_playback_state("error".into());
+                }
+            }
+        });
+    }
 }

@@ -1,7 +1,15 @@
-use rsmpv::{Event, Mpv};
+use rsmpv::{EndFileReason, Event, Mpv};
 
 pub struct EmbeddedMpvPlayer {
     mpv: Mpv,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EmbeddedPlaybackEvent {
+    FileLoaded,
+    EndOfFile,
+    Stopped,
+    Error,
 }
 
 impl EmbeddedMpvPlayer {
@@ -101,27 +109,41 @@ impl EmbeddedMpvPlayer {
             .map_err(|error| error.to_string())
     }
 
-    pub fn poll_events(&self) {
-        while let Some(event) = self.mpv.poll_event() {
+    pub fn poll_events(&self) -> Vec<EmbeddedPlaybackEvent> {
+        let mut events = Vec::new();
+
+        loop {
+            // Ganti self.mpv dengan nama field Mpv
+            // yang memang digunakan pada struct milikmu.
+            let Some(event) = self.mpv.poll_event() else {
+                break;
+            };
+
             match event {
-                Event::StartFile { .. } => {
-                    println!("[libmpv] Starting video...");
-                }
-
                 Event::FileLoaded => {
-                    println!("[libmpv] Video successfully loaded");
+                    events.push(EmbeddedPlaybackEvent::FileLoaded);
                 }
 
-                Event::EndFile { reason, error, .. } => {
-                    eprintln!("[libmpv] Playback ended: {reason:?}, {error:?}");
-                }
+                Event::EndFile { reason, .. } => match reason {
+                    EndFileReason::Eof => {
+                        events.push(EmbeddedPlaybackEvent::EndOfFile);
+                    }
 
-                Event::Shutdown => {
-                    println!("[libmpv] Shutting down");
-                }
+                    EndFileReason::Stop => {
+                        events.push(EmbeddedPlaybackEvent::Stopped);
+                    }
+
+                    EndFileReason::Error => {
+                        events.push(EmbeddedPlaybackEvent::Error);
+                    }
+
+                    _ => {}
+                },
 
                 _ => {}
             }
         }
+
+        events
     }
 }
