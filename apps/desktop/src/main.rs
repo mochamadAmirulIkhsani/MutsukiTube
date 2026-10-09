@@ -109,9 +109,6 @@ fn main() -> Result<(), slint::PlatformError> {
     #[cfg(target_os = "windows")]
     handlers::player::register(&ui, &context, native_session.clone());
 
-    #[cfg(not(target_os = "windows"))]
-    handlers::player::register(&ui, &context);
-
     #[cfg(target_os = "windows")]
     handlers::player_controls::register(&ui, native_session.clone());
 
@@ -119,6 +116,26 @@ fn main() -> Result<(), slint::PlatformError> {
     handlers::settings::register(&ui, &context);
     handlers::library::register(&ui, &context);
     handlers::search::register(&ui, &context);
+
+    {
+        let weak = ui.as_weak();
+
+        ui.on_toggle_fullscreen(move || {
+            let Some(ui) = weak.upgrade() else {
+                return;
+            };
+
+            let fullscreen = !ui.window().is_fullscreen();
+
+            ui.window().set_fullscreen(fullscreen);
+            ui.set_fullscreen_mode(fullscreen);
+
+            println!(
+                "[MutsukiTube] Fullscreen: {}",
+                if fullscreen { "enabled" } else { "disabled" }
+            );
+        });
+    }
 
     #[cfg(target_os = "windows")]
     let surface_timer = {
@@ -145,15 +162,15 @@ fn main() -> Result<(), slint::PlatformError> {
                 let mut session = session_for_timer.borrow_mut();
                 session.controller.poll_events();
 
+                ui.set_playback_state(session.controller.playback_state().as_str().into());
+
                 let ready = session.controller.is_initialized();
 
                 ui.set_player_ready(ready);
 
                 if ready {
                     let position = session.controller.position().unwrap_or(0.0);
-
                     let duration = session.controller.duration().unwrap_or(0.0);
-
                     let paused = session.controller.is_paused().unwrap_or(true);
 
                     if position.is_finite() && position >= 0.0 {
@@ -210,6 +227,16 @@ fn main() -> Result<(), slint::PlatformError> {
                 // ========================================
 
                 let geometry = VideoGeometry::from_slint(&ui);
+                if ui.get_fullscreen_mode() && geometry.is_none() {
+                    eprintln!(
+                        "[MutsukiTube] Fullscreen geometry invalid: \
+                        x={}, y={}, width={}, height={}",
+                        ui.get_video_x(),
+                        ui.get_video_y(),
+                        ui.get_video_width(),
+                        ui.get_video_height()
+                    );
+                }
 
                 if let Some(surface) = session.surface.as_ref() {
                     match geometry {
@@ -287,6 +314,10 @@ fn main() -> Result<(), slint::PlatformError> {
                 let Some(video_id) = session.pending_video_id.take() else {
                     return;
                 };
+
+                ui.set_playback_position(0.0);
+                ui.set_playback_duration(0.0);
+                ui.set_player_paused(true);
 
                 let url = format!("https://www.youtube.com/watch?v={video_id}");
 
