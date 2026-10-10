@@ -1,0 +1,2 @@
+[env]
+MPV_LIBRARY_DIR = { value = "vendor/libmpv/windows-x64", relative = true }

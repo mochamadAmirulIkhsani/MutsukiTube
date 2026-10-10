@@ -149,6 +149,10 @@ fn main() -> Result<(), slint::PlatformError> {
 
         let last_geometry = std::cell::Cell::new(None::<VideoGeometry>);
 
+        let surface_visible = std::cell::Cell::new(false);
+
+        let was_minimized = std::cell::Cell::new(false);
+
         timer.start(
             slint::TimerMode::Repeated,
             Duration::from_millis(200),
@@ -158,6 +162,20 @@ fn main() -> Result<(), slint::PlatformError> {
                 };
 
                 let is_watch = ui.get_current_page().as_str() == "watch";
+
+                let is_minimized = ui.window().is_minimized();
+
+                if was_minimized.get() != is_minimized {
+                    was_minimized.set(is_minimized);
+
+                    if is_minimized {
+                        println!("[MutsukiTube] Window minimized");
+                    } else {
+                        println!("[MutsukiTube] Window restored");
+
+                        last_geometry.set(None);
+                    }
+                }
 
                 let mut session = session_for_timer.borrow_mut();
                 session.controller.poll_events();
@@ -189,8 +207,12 @@ fn main() -> Result<(), slint::PlatformError> {
                 if !is_watch {
                     session.pending_video_id = None;
 
-                    if let Some(surface) = session.surface.as_ref() {
-                        surface.hide();
+                    if surface_visible.get() {
+                        if let Some(surface) = session.surface.as_ref() {
+                            surface.hide();
+                        }
+
+                        surface_visible.set(false);
                     }
 
                     ui.set_player_paused(true);
@@ -198,6 +220,18 @@ fn main() -> Result<(), slint::PlatformError> {
                     ui.set_playback_duration(0.0);
 
                     last_geometry.set(None);
+
+                    return;
+                }
+
+                if is_minimized {
+                    if surface_visible.get() {
+                        if let Some(surface) = session.surface.as_ref() {
+                            surface.hide();
+                        }
+
+                        surface_visible.set(false);
+                    }
 
                     return;
                 }
@@ -238,10 +272,11 @@ fn main() -> Result<(), slint::PlatformError> {
                     );
                 }
 
+                let geometry = VideoGeometry::from_slint(&ui);
+
                 if let Some(surface) = session.surface.as_ref() {
                     match geometry {
                         Some(rect) => {
-                            // Update HWND hanya jika geometry berubah.
                             if last_geometry.get() != Some(rect) {
                                 match surface.set_geometry(rect.x, rect.y, rect.width, rect.height)
                                 {
@@ -257,18 +292,30 @@ fn main() -> Result<(), slint::PlatformError> {
 
                                     Err(error) => {
                                         eprintln!("[MutsukiTube] Geometry error: {error}");
+
+                                        return;
                                     }
                                 }
                             }
 
-                            surface.show();
+                            if !surface_visible.get() {
+                                surface.show();
+                                surface_visible.set(true);
+
+                                println!("[MutsukiTube] Video surface shown");
+                            }
                         }
 
                         None => {
-                            surface.hide();
+                            if surface_visible.get() {
+                                surface.hide();
+                                surface_visible.set(false);
+
+                                println!("[MutsukiTube] Video surface hidden");
+                            }
+
                             last_geometry.set(None);
 
-                            // Layout belum memiliki area valid.
                             return;
                         }
                     }
