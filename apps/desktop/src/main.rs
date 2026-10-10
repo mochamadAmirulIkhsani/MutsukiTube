@@ -139,6 +139,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let surface_visible = Cell::new(false);
         let was_minimized = Cell::new(false);
         let video_loading = Cell::new(false);
+        let last_playback_state = RefCell::new(String::new());
 
         timer.start(
             slint::TimerMode::Repeated,
@@ -169,6 +170,24 @@ fn main() -> Result<(), slint::PlatformError> {
                 session.controller.poll_events();
 
                 let playback_state = session.controller.playback_state().as_str().to_string();
+
+                {
+                    let mut previous = last_playback_state.borrow_mut();
+
+                    if *previous != playback_state {
+                        println!(
+                            "[MutsukiTube] Playback state: {} -> {}",
+                            if previous.is_empty() {
+                                "unknown"
+                            } else {
+                                previous.as_str()
+                            },
+                            playback_state
+                        );
+
+                        *previous = playback_state.clone();
+                    }
+                }
 
                 if session.pending_video_id.is_some() {
                     video_loading.set(true);
@@ -396,6 +415,13 @@ fn main() -> Result<(), slint::PlatformError> {
                             }
                         }
                     }
+                }
+
+                let controller_state = session.controller.playback_state().as_str();
+
+                if video_loading.get() && controller_state == "error" {
+                    video_loading.set(false);
+                    ui.set_playback_state("error".into());
                 }
 
                 let is_loading = video_loading.get();
