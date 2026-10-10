@@ -1,9 +1,5 @@
 use mutsukitube_embedded_player::{EmbeddedMpvPlayer, EmbeddedPlaybackEvent};
 
-// ========================================
-// PLAYBACK STATE
-// ========================================
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlaybackState {
     Idle,
@@ -29,10 +25,6 @@ impl PlaybackState {
     }
 }
 
-// ========================================
-// EMBEDDED PLAYER CONTROLLER
-// ========================================
-
 pub struct EmbeddedPlayerController {
     player: Option<EmbeddedMpvPlayer>,
     current_source: Option<String>,
@@ -50,10 +42,6 @@ impl EmbeddedPlayerController {
         }
     }
 
-    // ====================================
-    // STATUS
-    // ====================================
-
     pub fn is_initialized(&self) -> bool {
         self.player.is_some()
     }
@@ -61,10 +49,6 @@ impl EmbeddedPlayerController {
     pub fn playback_state(&self) -> PlaybackState {
         self.playback_state
     }
-
-    // ====================================
-    // INITIALIZATION
-    // ====================================
 
     pub fn initialize(&mut self, hwnd: usize) -> Result<(), String> {
         if self.player.is_some() {
@@ -87,10 +71,6 @@ impl EmbeddedPlayerController {
             }
         }
     }
-
-    // ====================================
-    // LOAD VIDEO
-    // ====================================
 
     pub fn load_video(&mut self, source: &str) -> Result<(), String> {
         if source.trim().is_empty() {
@@ -120,10 +100,6 @@ impl EmbeddedPlayerController {
         Ok(())
     }
 
-    // ====================================
-    // PLAY / PAUSE
-    // ====================================
-
     pub fn play(&self) -> Result<(), String> {
         self.player.as_ref().ok_or("Player not initialized")?.play()
     }
@@ -146,10 +122,6 @@ impl EmbeddedPlayerController {
         }
     }
 
-    // ====================================
-    // STOP
-    // ====================================
-
     pub fn stop(&mut self) -> Result<(), String> {
         if let Some(player) = self.player.as_ref() {
             if let Err(error) = player.stop() {
@@ -164,10 +136,6 @@ impl EmbeddedPlayerController {
         Ok(())
     }
 
-    // ====================================
-    // SEEK
-    // ====================================
-
     pub fn seek(&self, seconds: f64) -> Result<(), String> {
         if !seconds.is_finite() || seconds < 0.0 {
             return Err("Invalid seek position".into());
@@ -178,10 +146,6 @@ impl EmbeddedPlayerController {
             .ok_or("Player not initialized")?
             .seek(seconds)
     }
-
-    // ====================================
-    // VOLUME
-    // ====================================
 
     pub fn set_volume(&self, value: f64) -> Result<(), String> {
         if !value.is_finite() {
@@ -194,10 +158,6 @@ impl EmbeddedPlayerController {
             .set_volume(value.clamp(0.0, 100.0))
     }
 
-    // ====================================
-    // PLAYBACK INFORMATION
-    // ====================================
-
     pub fn position(&self) -> Option<f64> {
         self.player.as_ref()?.position().ok()
     }
@@ -209,10 +169,6 @@ impl EmbeddedPlayerController {
     pub fn is_paused(&self) -> Option<bool> {
         self.player.as_ref()?.is_paused().ok()
     }
-
-    // ====================================
-    // NAVIGATION
-    // ====================================
 
     pub fn on_navigation(&mut self, is_watch_page: bool) {
         if self.was_on_watch_page == is_watch_page {
@@ -228,10 +184,6 @@ impl EmbeddedPlayerController {
         }
     }
 
-    // ====================================
-    // EVENT POLLING
-    // ====================================
-
     pub fn poll_events(&mut self) {
         let Some(player) = self.player.as_ref() else {
             return;
@@ -242,7 +194,6 @@ impl EmbeddedPlayerController {
         for event in events {
             match event {
                 EmbeddedPlaybackEvent::FileLoaded => {
-                    // Jangan ubah state hasil Stop.
                     if self.current_source.is_none() {
                         continue;
                     }
@@ -270,8 +221,6 @@ impl EmbeddedPlayerController {
                 }
 
                 EmbeddedPlaybackEvent::Stopped => {
-                    // Stop dari video lama dapat muncul
-                    // ketika video pengganti sedang loading.
                     if self.playback_state != PlaybackState::Loading
                         && self.playback_state != PlaybackState::Finished
                     {
@@ -289,8 +238,6 @@ impl EmbeddedPlayerController {
             }
         }
 
-        // Sinkronisasi Pause / Resume tanpa mengganggu
-        // state Loading, Finished, Stopped, atau Error.
         if matches!(
             self.playback_state,
             PlaybackState::Playing | PlaybackState::Paused
@@ -304,10 +251,6 @@ impl EmbeddedPlayerController {
             }
         }
     }
-
-    // ====================================
-    // REPLAY
-    // ====================================
 
     pub fn replay(&mut self) -> Result<(), String> {
         let source = self.current_source.clone().ok_or("No media loaded")?;
@@ -324,16 +267,11 @@ impl EmbeddedPlayerController {
         Ok(())
     }
 
-    // ====================================
-    // SHUTDOWN
-    // ====================================
-
     pub fn shutdown(&mut self) {
         if let Err(error) = self.stop() {
             eprintln!("[MutsukiTube] Stop during shutdown: {error}");
         }
 
-        // Drop libmpv sebelum HWND dihancurkan.
         self.player.take();
 
         self.current_source = None;

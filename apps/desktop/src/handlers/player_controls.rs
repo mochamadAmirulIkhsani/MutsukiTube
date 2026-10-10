@@ -1,13 +1,10 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::Cell, cell::RefCell, rc::Rc};
 
 use slint::ComponentHandle;
 
 use crate::{AppWindow, native_window::session::NativeVideoSession};
 
 pub fn register(ui: &AppWindow, session: Rc<RefCell<NativeVideoSession>>) {
-    // ===================================
-    // PLAY / PAUSE
-    // ===================================
     {
         let session = session.clone();
         let weak = ui.as_weak();
@@ -31,9 +28,6 @@ pub fn register(ui: &AppWindow, session: Rc<RefCell<NativeVideoSession>>) {
         });
     }
 
-    // ===================================
-    // STOP
-    // ===================================
     {
         let session = session.clone();
         let weak = ui.as_weak();
@@ -56,9 +50,6 @@ pub fn register(ui: &AppWindow, session: Rc<RefCell<NativeVideoSession>>) {
         });
     }
 
-    // ===================================
-    // SEEK
-    // ===================================
     {
         let session = session.clone();
         let weak = ui.as_weak();
@@ -77,9 +68,6 @@ pub fn register(ui: &AppWindow, session: Rc<RefCell<NativeVideoSession>>) {
         });
     }
 
-    // ===================================
-    // VOLUME
-    // ===================================
     {
         let session = session.clone();
         let weak = ui.as_weak();
@@ -94,13 +82,56 @@ pub fn register(ui: &AppWindow, session: Rc<RefCell<NativeVideoSession>>) {
 
             if let Some(ui) = weak.upgrade() {
                 ui.set_playback_volume(volume as f32);
+                ui.set_player_muted(volume <= 0.0);
+
+                println!("[MutsukiTube] Volume changed: {:.0}%", volume);
             }
         });
     }
 
-    // ===================================
-    // REPLAY
-    // ===================================
+    {
+        let previous_volume = Rc::new(Cell::new(70.0_f64));
+
+        let session = session.clone();
+        let weak = ui.as_weak();
+
+        ui.on_toggle_mute(move || {
+            let Some(ui) = weak.upgrade() else {
+                return;
+            };
+
+            let currently_muted = ui.get_player_muted();
+
+            let current_volume = ui.get_playback_volume() as f64;
+
+            let target_volume = if currently_muted {
+                previous_volume.get()
+            } else {
+                if current_volume > 0.0 {
+                    previous_volume.set(current_volume);
+                }
+
+                0.0
+            };
+
+            let result = session.borrow().controller.set_volume(target_volume);
+
+            match result {
+                Ok(()) => {
+                    ui.set_playback_volume(target_volume as f32);
+
+                    ui.set_player_muted(target_volume <= 0.0);
+
+                    println!("[MutsukiTube] Volume: {}%", target_volume);
+                }
+
+                Err(error) => {
+                    eprintln!("[MutsukiTube] Mute error: {error}");
+                }
+            }
+        });
+    }
+
     {
         let session = session.clone();
         let weak = ui.as_weak();

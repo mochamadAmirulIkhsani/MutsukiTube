@@ -1,13 +1,15 @@
+
 import {
     Button,
     Slider,
     VerticalBox,
     HorizontalBox,
     ComboBox,
+    ScrollView,
+    Spinner,
 } from "std-widgets.slint";
 
 export component WatchPage inherits Rectangle {
-
     in property <string> video-title;
     in property <string> channel;
     in property <string> video-id;
@@ -17,13 +19,14 @@ export component WatchPage inherits Rectangle {
 
     in property <bool> player-ready: false;
     in property <bool> player-paused: true;
+    in property <bool> player-muted: false;
 
     in property <float> playback-position: 0;
     in property <float> playback-duration: 0;
     in property <float> playback-volume: 70;
 
-    in property <bool> fullscreen-mode: false;
     in property <string> playback-state: "idle";
+    in property <bool> fullscreen-mode: false;
 
     out property <length> video-surface-x:
         video-surface.absolute-position.x;
@@ -84,62 +87,31 @@ export component WatchPage inherits Rectangle {
         }
 
         video-surface := Rectangle {
-            min-height: root.fullscreen-mode ? 0px : 360px;
-            max-height: root.fullscreen-mode ? 10000px : 360px;
+            min-height: root.fullscreen-mode
+                ? 0px
+                : 360px;
+
+            max-height: root.fullscreen-mode
+                ? 10000px
+                : 360px;
 
             horizontal-stretch: 1;
             vertical-stretch: root.fullscreen-mode ? 1 : 0;
 
             background: #050505;
-            border-radius: root.fullscreen-mode ? 0px : 8px;
 
-            Text {
-                text: root.player-ready ? "" : "Video Player";
-                color: #777777;
-                horizontal-alignment: center;
-                vertical-alignment: center;
+            border-radius: root.fullscreen-mode
+                ? 0px
+                : 8px;
+
+            if root.playback-state == "loading": Spinner {
+                width: 48px;
+                height: 48px;
+                indeterminate: true;
+
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
             }
-        }
-
-        if !root.fullscreen-mode: HorizontalBox {
-            spacing: 12px;
-
-            Button {
-                text: "Play Video";
-                enabled: root.video-id != "";
-
-                clicked => {
-                    root.play(root.video-id);
-                }
-            }
-
-            Text {
-                text: root.player-ready
-                    ? "Embedded libmpv ready"
-                    : "Initializing player...";
-
-                color: #aaaaaa;
-                vertical-alignment: center;
-            }
-
-            Rectangle {
-                horizontal-stretch: 1;
-                background: transparent;
-            }
-        }
-
-        Text {
-            text: root.playback-state == "finished"
-                ? "Video selesai diputar"
-                : root.playback-state == "loading"
-                ? "Loading video..."
-                : root.playback-state == "error"
-                ? "Video gagal diputar"
-                : "";
-
-            color: #aaaaaa;
-            font-size: 14px;
-            visible: self.text != "";
         }
 
         VerticalBox {
@@ -166,7 +138,9 @@ export component WatchPage inherits Rectangle {
                 spacing: 8px;
 
                 Text {
-                    text: root.playback-position.to-fixed(0) + "s";
+                    text: root.playback-position.to-fixed(0)
+                        + "s";
+
                     color: #aaaaaa;
                     font-size: 13px;
                 }
@@ -177,7 +151,9 @@ export component WatchPage inherits Rectangle {
                 }
 
                 Text {
-                    text: root.playback-duration.to-fixed(0) + "s";
+                    text: root.playback-duration.to-fixed(0)
+                        + "s";
+
                     color: #aaaaaa;
                     font-size: 13px;
                 }
@@ -237,8 +213,14 @@ export component WatchPage inherits Rectangle {
             }
 
             Text {
-                text: "Volume";
-                color: white;
+                text: root.player-muted
+                    ? "Muted"
+                    : "Volume";
+
+                color: root.player-muted
+                    ? #ff7777
+                    : white;
+
                 vertical-alignment: center;
             }
 
@@ -266,59 +248,68 @@ export component WatchPage inherits Rectangle {
             }
         }
 
-        if !root.fullscreen-mode: Text {
-            text: root.video-title;
-            color: white;
-            font-size: 23px;
-            font-weight: 700;
-            wrap: word-wrap;
-        }
-
-        if !root.fullscreen-mode: Text {
-            text: root.channel;
-            color: #aaaaaa;
-            font-size: 16px;
-        }
-
-        if !root.fullscreen-mode: HorizontalBox {
-            spacing: 12px;
-
-            Button {
-                text: "Toggle Favorite";
-
-                clicked => {
-                    root.toggle-favorite();
-                }
-            }
-
-            playlist-picker := ComboBox {
-                model: root.playlists;
-                enabled: root.playlists.length > 0;
-            }
-
-            Button {
-                text: "Add to Playlist";
-
-                enabled: root.playlists.length > 0
-                    && playlist-picker.current-value != "";
-
-                clicked => {
-                    root.add-to-playlist(
-                        playlist-picker.current-value);
-                }
-            }
-        }
-
-        if !root.fullscreen-mode && root.library-status != "": Text {
-            text: root.library-status;
-            color: #aaaaaa;
-            font-size: 14px;
-            wrap: word-wrap;
-        }
-
-        if !root.fullscreen-mode: Rectangle {
+        if !root.fullscreen-mode: ScrollView {
+            horizontal-stretch: 1;
             vertical-stretch: 1;
-            background: transparent;
+
+            horizontal-scrollbar-policy: always-off;
+            vertical-scrollbar-policy: as-needed;
+
+            VerticalBox {
+                padding: 4px;
+                spacing: 16px;
+
+                Text {
+                    text: root.video-title;
+                    color: white;
+                    font-size: 23px;
+                    font-weight: 700;
+                    wrap: word-wrap;
+                }
+
+                Text {
+                    text: root.channel;
+                    color: #aaaaaa;
+                    font-size: 16px;
+                    wrap: word-wrap;
+                }
+
+                HorizontalBox {
+                    spacing: 12px;
+
+                    Button {
+                        text: "Toggle Favorite";
+
+                        clicked => {
+                            root.toggle-favorite();
+                        }
+                    }
+
+                    playlist-picker := ComboBox {
+                        model: root.playlists;
+                        enabled: root.playlists.length > 0;
+                    }
+
+                    Button {
+                        text: "Add to Playlist";
+
+                        enabled: root.playlists.length > 0
+                            && playlist-picker.current-value != "";
+
+                        clicked => {
+                            root.add-to-playlist(
+                                playlist-picker.current-value);
+                        }
+                    }
+                }
+
+                if root.library-status != "": Text {
+                    text: root.library-status;
+                    color: #aaaaaa;
+                    font-size: 14px;
+                    wrap: word-wrap;
+                }
+            }
         }
     }
 }

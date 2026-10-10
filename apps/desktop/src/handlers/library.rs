@@ -17,10 +17,6 @@ use crate::{
     ui_models::video_to_ui,
 };
 
-// =====================================================
-// HELPERS
-// =====================================================
-
 fn find_video(state: &AppState, video_id: &str) -> Option<Video> {
     state
         .search_results
@@ -78,8 +74,6 @@ fn refresh_library(
                 return;
             }
 
-            // Cegah respons halaman sebelumnya mengganti
-            // konten halaman yang sedang dibuka.
             if ui.get_library_mode().as_str() != mode {
                 return;
             }
@@ -132,12 +126,7 @@ fn refresh_library(
     });
 }
 
-// =====================================================
-// NAVIGATION
-// =====================================================
-
 fn register_navigation(ui: &AppWindow, context: &AppContext) {
-    // OPEN LIBRARY
     {
         let weak = ui.as_weak();
         let context = context.clone();
@@ -152,7 +141,6 @@ fn register_navigation(ui: &AppWindow, context: &AppContext) {
         });
     }
 
-    // REFRESH LIBRARY
     {
         let weak = ui.as_weak();
         let context = context.clone();
@@ -169,7 +157,6 @@ fn register_navigation(ui: &AppWindow, context: &AppContext) {
         });
     }
 
-    // SELECT PLAYLIST
     {
         let weak = ui.as_weak();
         let context = context.clone();
@@ -184,10 +171,6 @@ fn register_navigation(ui: &AppWindow, context: &AppContext) {
         });
     }
 }
-
-// =====================================================
-// CREATE PLAYLIST
-// =====================================================
 
 fn register_create_playlist(ui: &AppWindow, context: &AppContext) {
     let weak = ui.as_weak();
@@ -234,10 +217,6 @@ fn register_create_playlist(ui: &AppWindow, context: &AppContext) {
     });
 }
 
-// =====================================================
-// TOGGLE FAVORITE
-// =====================================================
-
 fn register_toggle_favorite(ui: &AppWindow, context: &AppContext) {
     let weak = ui.as_weak();
     let context = context.clone();
@@ -268,7 +247,6 @@ fn register_toggle_favorite(ui: &AppWindow, context: &AppContext) {
             let result = toggle_favorite(&video);
 
             let _ = weak.upgrade_in_event_loop(move |ui| {
-                // Jangan mengubah status video lain.
                 if ui.get_selected_video_id().as_str() != video_id {
                     return;
                 }
@@ -290,10 +268,6 @@ fn register_toggle_favorite(ui: &AppWindow, context: &AppContext) {
         });
     });
 }
-
-// =====================================================
-// ADD TO PLAYLIST
-// =====================================================
 
 fn register_add_to_playlist(ui: &AppWindow, context: &AppContext) {
     let weak = ui.as_weak();
@@ -349,10 +323,6 @@ fn register_add_to_playlist(ui: &AppWindow, context: &AppContext) {
         });
     });
 }
-
-// =====================================================
-// REGISTER LIBRARY HANDLERS
-// =====================================================
 
 pub fn register(ui: &AppWindow, context: &AppContext) {
     register_navigation(ui, context);

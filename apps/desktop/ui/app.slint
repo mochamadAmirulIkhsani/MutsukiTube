@@ -15,9 +15,6 @@ export component AppWindow inherits Window {
     min-width: 800px;
     min-height: 600px;
 
-    // ========================================
-    // SEARCH
-    // ========================================
 
     in-out property <string> current-page: "search";
     in-out property <[VideoItem]> videos;
@@ -27,32 +24,20 @@ export component AppWindow inherits Window {
     in-out property <bool> has-more: false;
     in-out property <string> status-text: "";
 
-    // ========================================
-    // SELECTED VIDEO
-    // ========================================
 
     in-out property <string> selected-video-id: "";
     in-out property <string> selected-video-title: "";
     in-out property <string> selected-video-channel: "";
 
-    // ========================================
-    // HISTORY
-    // ========================================
 
     in-out property <[VideoItem]> history-videos;
     in-out property <bool> history-loading: false;
     in-out property <string> history-status: "";
 
-    // ========================================
-    // SETTINGS
-    // ========================================
 
     in-out property <string> provider-mode: "auto";
     in-out property <string> settings-status: "";
 
-    // ========================================
-    // LIBRARY
-    // ========================================
 
     in-out property <[VideoItem]> library-videos;
     in-out property <[string]> playlist-names;
@@ -64,9 +49,6 @@ export component AppWindow inherits Window {
     in-out property <string> library-status: "";
     in-out property <string> watch-library-status: "";
 
-    // ========================================
-    // EMBEDDED PLAYER STATE
-    // ========================================
 
     in-out property <bool> player-ready: false;
     in-out property <bool> player-paused: true;
@@ -78,9 +60,8 @@ export component AppWindow inherits Window {
     in-out property <string> playback-state: "idle";
     in-out property <bool> fullscreen-mode: false;
 
-    // ========================================
-    // CALLBACKS
-    // ========================================
+    in-out property <bool> player-muted: false;
+
 
     callback save-provider(string);
     callback search(string);
@@ -107,9 +88,14 @@ export component AppWindow inherits Window {
     callback replay-video();
     callback toggle-fullscreen();
 
-    // ========================================
-    // RESPONSIVE VIDEO GEOMETRY
-    // ========================================
+    callback toggle-mute();
+
+    changed current-page => {
+        if (root.current-page == "watch") {
+            shortcut-scope.focus();
+        }
+    }
+
 
     out property <float> video-x:
         watch-page.video-surface-x / 1px;
@@ -123,9 +109,6 @@ export component AppWindow inherits Window {
     out property <float> video-height:
         watch-page.video-surface-height / 1px;
 
-    // ========================================
-    // SEARCH PAGE
-    // ========================================
 
     if root.current-page == "search": SearchPage {
         videos: root.videos;
@@ -164,85 +147,129 @@ export component AppWindow inherits Window {
         }
     }
 
-    // ========================================
-    // WATCH PAGE
-    // ========================================
 
-    
-watch-page := WatchPage {
+
+shortcut-scope := FocusScope {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+
         visible: root.current-page == "watch";
+        enabled: root.current-page == "watch";
 
-        // Video information
-        video-id: root.selected-video-id;
-        video-title: root.selected-video-title;
-        channel: root.selected-video-channel;
+        focus-on-click: true;
 
-        // Library
-        playlists: root.playlist-names;
-        library-status: root.watch-library-status;
+        capture-key-pressed(event) => {
+            if (root.current-page != "watch") {
+                return reject;
+            }
+            if (event.repeat
+                || event.modifiers.control
+                || event.modifiers.alt
+                || event.modifiers.meta) {
+                return reject;
+            }
 
-        // Embedded player
-        player-ready: root.player-ready;
-        player-paused: root.player-paused;
+        if (event.text == " ") {
+                if (root.player-ready) {
+                    root.toggle-playback();
+                }
+                return accept;
+            }
 
-        playback-position: root.playback-position;
-        playback-duration: root.playback-duration;
-        playback-volume: root.playback-volume;
-        playback-state: root.playback-state;
+        if (event.text == "f" || event.text == "F") {
+                if (root.player-ready) {
+                    root.toggle-fullscreen();
+                }
+                return accept;
+            }
 
-        // Fullscreen
-        fullscreen-mode: root.fullscreen-mode;
+        if (event.text == Key.Escape) {
+                if (root.fullscreen-mode) {
+                    root.toggle-fullscreen();
+                    return accept;
+                }
+            }
 
-        // Navigation
+        if (event.text == "m" || event.text == "M") {
+                if (root.player-ready) {
+                    root.toggle-mute();
+                }
+                return accept;
+            }
+            reject
+        }
+
+        watch-page := WatchPage {
+
+            width: parent.width;
+            height: parent.height;
+
+            video-id: root.selected-video-id;
+            video-title: root.selected-video-title;
+            channel: root.selected-video-channel;
+
+            playlists: root.playlist-names;
+            library-status: root.watch-library-status;
+
+            player-ready: root.player-ready;
+            player-paused: root.player-paused;
+
+            playback-position: root.playback-position;
+            playback-duration: root.playback-duration;
+            playback-volume: root.playback-volume;
+            playback-state: root.playback-state;
+
+            fullscreen-mode: root.fullscreen-mode;
+
+            player-muted: root.player-muted;
+
         back => {
-            if (root.fullscreen-mode) {
+                if (root.fullscreen-mode) {
+                    root.toggle-fullscreen();
+                }
+                root.current-page = "search";
+            }
+
+        play(id) => {
+                root.play-video(id);
+            }
+
+            toggle-playback => {
+                root.toggle-playback();
+            }
+
+            stop-playback => {
+                root.stop-playback();
+            }
+
+            seek-playback(value) => {
+                root.seek-playback(value);
+            }
+
+            change-volume(value) => {
+                root.change-volume(value);
+            }
+
+            replay => {
+                root.replay-video();
+            }
+
+            toggle-fullscreen => {
                 root.toggle-fullscreen();
             }
-            root.current-page = "search";
-        }
 
-        // Playback
-        play(id) => {
-            root.play-video(id);
-        }
-
-        toggle-playback => {
-            root.toggle-playback();
-        }
-
-        stop-playback => {
-            root.stop-playback();
-        }
-
-        seek-playback(value) => {
-            root.seek-playback(value);
-        }
-
-        change-volume(value) => {
-            root.change-volume(value);
-        }
-
-        replay => {
-            root.replay-video();
-        }
-
-        toggle-fullscreen => {
-            root.toggle-fullscreen();
-        }
-
-         // Library
         toggle-favorite => {
-            root.toggle-favorite();
-        }
+                root.toggle-favorite();
+            }
 
-        add-to-playlist(name) => {
-            root.add-to-playlist(name);
+            add-to-playlist(name) => {
+                root.add-to-playlist(name);
+            }
         }
     }
 
-    // ========================================
-    // HISTORY PAGE
-    // ========================================
 
     if root.current-page == "history": HistoryPage {
         videos: root.history-videos;
@@ -262,9 +289,6 @@ watch-page := WatchPage {
         }
     }
 
-    // ========================================
-    // SETTINGS PAGE
-    // ========================================
 
     if root.current-page == "settings": SettingsPage {
         provider-mode: root.provider-mode;
@@ -279,9 +303,6 @@ watch-page := WatchPage {
         }
     }
 
-    // ========================================
-    // LIBRARY PAGE
-    // ========================================
 
     if root.current-page == "library": LibraryPage {
         videos: root.library-videos;

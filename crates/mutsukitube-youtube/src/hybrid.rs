@@ -80,7 +80,6 @@ impl VideoProvider for YoutubeProvider {
     }
 
     async fn video(&self, id: &str) -> Result<Video, ProviderError> {
-        // Native metadata belum tersedia.
         self.fallback.video(id).await
     }
 }
