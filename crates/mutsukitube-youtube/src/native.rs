@@ -12,7 +12,6 @@ use crate::{
 
 const SEARCH_ENDPOINT: &str = "https://www.youtube.com/youtubei/v1/search?prettyPrint=false";
 
-// Versi bootstrap. Bisa diganti lewat environment variable.
 const DEFAULT_WEB_VERSION: &str = "2.20261002.01.00";
 
 pub struct NativeYoutubeProvider {

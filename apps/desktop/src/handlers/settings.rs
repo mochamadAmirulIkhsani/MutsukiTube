@@ -28,31 +28,28 @@ pub fn register(ui: &AppWindow, context: &AppContext) {
         context.handle.spawn_blocking(move || {
             let result = set_provider_mode(&mode);
 
-            let _ = weak.upgrade_in_event_loop(move |ui| {
-                match result {
-                    Ok(()) => {
-                        if let Ok(mut s) = state.lock() {
-                            s.provider_mode = mode.clone();
+            let _ = weak.upgrade_in_event_loop(move |ui| match result {
+                Ok(()) => {
+                    if let Ok(mut s) = state.lock() {
+                        s.provider_mode = mode.clone();
 
-                            // Invalidate pencarian lama.
-                            s.search_generation = s.search_generation.wrapping_add(1);
+                        s.search_generation = s.search_generation.wrapping_add(1);
 
-                            s.loading_more = false;
-                            s.continuation_token = None;
-                        }
-
-                        ui.set_provider_mode(mode.into());
-
-                        ui.set_loading(false);
-                        ui.set_loading_more(false);
-                        ui.set_has_more(false);
-
-                        ui.set_settings_status("Settings saved successfully".into());
+                        s.loading_more = false;
+                        s.continuation_token = None;
                     }
 
-                    Err(error) => {
-                        ui.set_settings_status(format!("Failed to save settings: {error}").into());
-                    }
+                    ui.set_provider_mode(mode.into());
+
+                    ui.set_loading(false);
+                    ui.set_loading_more(false);
+                    ui.set_has_more(false);
+
+                    ui.set_settings_status("Settings saved successfully".into());
+                }
+
+                Err(error) => {
+                    ui.set_settings_status(format!("Failed to save settings: {error}").into());
                 }
             });
         });

@@ -30,7 +30,6 @@ impl VideoGeometry {
             return None;
         }
 
-        // Logical pixels -> physical pixels.
         let x = (x * scale).round() as i32;
         let y = (y * scale).round() as i32;
         let width = (width * scale).round() as i32;

@@ -13,10 +13,6 @@ use crate::{
     ui_models::video_to_ui,
 };
 
-// =====================================================
-// PROVIDER
-// =====================================================
-
 fn parse_provider_mode(value: &str) -> ProviderMode {
     match value {
         "native" => ProviderMode::Native,
@@ -59,11 +55,6 @@ async fn fetch_first_page(query: &str, mode: ProviderMode) -> Result<SearchPage,
     }
 }
 
-// =====================================================
-// SLINT MODEL HELPERS
-// =====================================================
-
-// Fungsi ini hanya boleh dipanggil di UI thread.
 fn replace_search_videos(ui: &AppWindow, items: Vec<VideoItem>) {
     let model = ui.get_videos();
 
@@ -74,14 +65,12 @@ fn replace_search_videos(ui: &AppWindow, items: Vec<VideoItem>) {
     }
 }
 
-// Fungsi ini juga hanya boleh dipanggil di UI thread.
 fn append_search_videos(ui: &AppWindow, items: Vec<VideoItem>) {
     let model = ui.get_videos();
 
     if let Some(model) = model.as_any().downcast_ref::<VecModel<VideoItem>>() {
         model.extend(items);
     } else {
-        // Fallback bila model bukan VecModel.
         let mut previous = (0..model.row_count())
             .filter_map(|index| model.row_data(index))
             .collect::<Vec<_>>();
@@ -91,10 +80,6 @@ fn append_search_videos(ui: &AppWindow, items: Vec<VideoItem>) {
         replace_search_videos(ui, previous);
     }
 }
-
-// =====================================================
-// SEARCH FIRST PAGE
-// =====================================================
 
 fn register_search(ui: &AppWindow, context: &AppContext) {
     let weak = ui.as_weak();
@@ -107,7 +92,6 @@ fn register_search(ui: &AppWindow, context: &AppContext) {
             return;
         }
 
-        // Ambil seluruh informasi request dalam satu lock.
         let (generation, provider_mode) = {
             let Ok(mut state) = context.state.lock() else {
                 return;
@@ -139,8 +123,6 @@ fn register_search(ui: &AppWindow, context: &AppContext) {
         let state = context.state.clone();
         let handle = context.handle.clone();
 
-        // Clone handle untuk dipakai dari UI callback
-        // setelah hasil pencarian selesai.
         let thumbnail_handle = handle.clone();
 
         handle.spawn(async move {
@@ -203,10 +185,6 @@ fn register_search(ui: &AppWindow, context: &AppContext) {
     });
 }
 
-// =====================================================
-// LOAD MORE
-// =====================================================
-
 fn register_load_more(ui: &AppWindow, context: &AppContext) {
     let weak = ui.as_weak();
     let context = context.clone();
@@ -253,8 +231,6 @@ fn register_load_more(ui: &AppWindow, context: &AppContext) {
                     return;
                 };
 
-                // Respons pencarian lama tidak boleh
-                // menimpa pencarian baru.
                 if app_state.search_generation != generation {
                     return;
                 }
@@ -277,8 +253,6 @@ fn register_load_more(ui: &AppWindow, context: &AppContext) {
 
                         let has_new = !new_videos.is_empty();
 
-                        // Hindari continuation yang sama
-                        // dan hasil halaman kosong.
                         app_state.continuation_token =
                             if has_new && page.next_page_token.as_deref() != Some(token.as_str()) {
                                 page.next_page_token
@@ -325,10 +299,6 @@ fn register_load_more(ui: &AppWindow, context: &AppContext) {
         });
     });
 }
-
-// =====================================================
-// REGISTER
-// =====================================================
 
 pub fn register(ui: &AppWindow, context: &AppContext) {
     register_search(ui, context);

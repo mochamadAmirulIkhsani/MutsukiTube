@@ -12,45 +12,37 @@ use std::{
 };
 
 use mutsukitube_storage::{get_playlist_names, get_provider_mode};
-
 use slint::{ComponentHandle, ModelRc, VecModel};
 
+use app_context::AppContext;
 use state::AppState;
 
-use app_context::AppContext;
-
 #[cfg(target_os = "windows")]
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 #[cfg(target_os = "windows")]
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
 #[cfg(target_os = "windows")]
-use native_window::windows::Win32VideoSurface;
-
-#[cfg(target_os = "windows")]
-use native_window::session::NativeVideoSession;
-
-#[cfg(target_os = "windows")]
-mod player_controller;
+use native_window::{
+    geometry::VideoGeometry, session::NativeVideoSession, windows::Win32VideoSurface,
+};
 
 #[cfg(target_os = "windows")]
 use mutsukitube_player::ExternalMpvPlayer;
 
 #[cfg(target_os = "windows")]
-use native_window::geometry::VideoGeometry;
+mod player_controller;
 
 slint::include_modules!();
 
 #[cfg(target_os = "windows")]
 fn get_slint_hwnd(ui: &AppWindow) -> Option<windows_sys::Win32::Foundation::HWND> {
     let window = ui.window().window_handle();
-
     let handle = window.window_handle().ok()?;
 
     match handle.as_raw() {
         RawWindowHandle::Win32(win32) => Some(win32.hwnd.get() as *mut std::ffi::c_void),
-
         _ => None,
     }
 }
@@ -64,10 +56,8 @@ fn main() -> Result<(), slint::PlatformError> {
 
     let saved_provider = match get_provider_mode() {
         Ok(mode) => mode,
-
         Err(error) => {
             eprintln!("[MutsukiTube] Failed to load settings: {error}");
-
             "auto".to_string()
         }
     };
@@ -97,7 +87,6 @@ fn main() -> Result<(), slint::PlatformError> {
 
             ui.set_playlist_names(ModelRc::from(Rc::new(VecModel::from(items))));
         }
-
         Err(error) => {
             eprintln!("[MutsukiTube] Failed to load playlists: {error}");
         }
@@ -142,16 +131,14 @@ fn main() -> Result<(), slint::PlatformError> {
         use std::time::Duration;
 
         let weak = ui.as_weak();
-
         let session_for_timer = native_session.clone();
 
         let timer = slint::Timer::default();
 
-        let last_geometry = std::cell::Cell::new(None::<VideoGeometry>);
-
-        let surface_visible = std::cell::Cell::new(false);
-
-        let was_minimized = std::cell::Cell::new(false);
+        let last_geometry = Cell::new(None::<VideoGeometry>);
+        let surface_visible = Cell::new(false);
+        let was_minimized = Cell::new(false);
+        let video_loading = Cell::new(false);
 
         timer.start(
             slint::TimerMode::Repeated,
@@ -178,9 +165,27 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
 
                 let mut session = session_for_timer.borrow_mut();
+
                 session.controller.poll_events();
 
-                ui.set_playback_state(session.controller.playback_state().as_str().into());
+                let playback_state = session.controller.playback_state().as_str().to_string();
+
+                if session.pending_video_id.is_some() {
+                    video_loading.set(true);
+                } else if video_loading.get() {
+                    match playback_state.as_str() {
+                        "playing" | "paused" | "finished" | "error" => {
+                            video_loading.set(false);
+                        }
+                        _ => {}
+                    }
+                }
+
+                if video_loading.get() {
+                    ui.set_playback_state("loading".into());
+                } else {
+                    ui.set_playback_state(playback_state.clone().into());
+                }
 
                 let ready = session.controller.is_initialized();
 
@@ -188,7 +193,9 @@ fn main() -> Result<(), slint::PlatformError> {
 
                 if ready {
                     let position = session.controller.position().unwrap_or(0.0);
+
                     let duration = session.controller.duration().unwrap_or(0.0);
+
                     let paused = session.controller.is_paused().unwrap_or(true);
 
                     if position.is_finite() && position >= 0.0 {
@@ -206,6 +213,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
                 if !is_watch {
                     session.pending_video_id = None;
+                    video_loading.set(false);
 
                     if surface_visible.get() {
                         if let Some(surface) = session.surface.as_ref() {
@@ -213,6 +221,8 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
 
                         surface_visible.set(false);
+
+                        println!("[MutsukiTube] Video surface hidden");
                     }
 
                     ui.set_player_paused(true);
@@ -231,6 +241,8 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
 
                         surface_visible.set(false);
+
+                        println!("[MutsukiTube] Video surface hidden");
                     }
 
                     return;
@@ -247,7 +259,6 @@ fn main() -> Result<(), slint::PlatformError> {
 
                             session.surface = Some(surface);
                         }
-
                         Err(error) => {
                             eprintln!("[MutsukiTube] Surface error: {error}");
 
@@ -256,23 +267,18 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                 }
 
-                // ========================================
-                // RESPONSIVE NATIVE VIDEO SURFACE
-                // ========================================
-
                 let geometry = VideoGeometry::from_slint(&ui);
+
                 if ui.get_fullscreen_mode() && geometry.is_none() {
                     eprintln!(
                         "[MutsukiTube] Fullscreen geometry invalid: \
-                        x={}, y={}, width={}, height={}",
+                         x={}, y={}, width={}, height={}",
                         ui.get_video_x(),
                         ui.get_video_y(),
                         ui.get_video_width(),
-                        ui.get_video_height()
+                        ui.get_video_height(),
                     );
                 }
-
-                let geometry = VideoGeometry::from_slint(&ui);
 
                 if let Some(surface) = session.surface.as_ref() {
                     match geometry {
@@ -285,11 +291,10 @@ fn main() -> Result<(), slint::PlatformError> {
 
                                         println!(
                                             "[MutsukiTube] Video surface: \
-                             {}x{} at ({}, {})",
+                                             {}x{} at ({}, {})",
                                             rect.width, rect.height, rect.x, rect.y,
                                         );
                                     }
-
                                     Err(error) => {
                                         eprintln!("[MutsukiTube] Geometry error: {error}");
 
@@ -297,15 +302,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     }
                                 }
                             }
-
-                            if !surface_visible.get() {
-                                surface.show();
-                                surface_visible.set(true);
-
-                                println!("[MutsukiTube] Video surface shown");
-                            }
                         }
-
                         None => {
                             if surface_visible.get() {
                                 surface.hide();
@@ -339,17 +336,22 @@ fn main() -> Result<(), slint::PlatformError> {
 
                             ui.set_player_ready(true);
                         }
-
                         Err(error) => {
                             eprintln!("[MutsukiTube] Player init error: {error}");
 
                             ui.set_player_ready(false);
+                            ui.set_playback_state("error".into());
+
+                            video_loading.set(false);
 
                             if let Some(video_id) = session.pending_video_id.take() {
                                 if let Err(fallback_error) =
                                     ExternalMpvPlayer::play_youtube(&video_id)
                                 {
-                                    eprintln!("[MutsukiTube] Fallback error: {fallback_error}");
+                                    eprintln!(
+                                        "[MutsukiTube] Fallback error: \
+                                         {fallback_error}"
+                                    );
                                 }
                             }
 
@@ -358,37 +360,62 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                 }
 
-                let Some(video_id) = session.pending_video_id.take() else {
-                    return;
-                };
+                if let Some(video_id) = session.pending_video_id.take() {
+                    video_loading.set(true);
 
-                ui.set_playback_position(0.0);
-                ui.set_playback_duration(0.0);
-                ui.set_player_paused(true);
+                    ui.set_playback_state("loading".into());
+                    ui.set_playback_position(0.0);
+                    ui.set_playback_duration(0.0);
+                    ui.set_player_paused(true);
 
-                let url = format!("https://www.youtube.com/watch?v={video_id}");
+                    let url = format!("https://www.youtube.com/watch?v={video_id}");
 
-                match session.controller.load_video(&url) {
-                    Ok(()) => {
-                        if let Err(error) = session.controller.play() {
-                            eprintln!("[MutsukiTube] Play error: {error}");
-                        }
+                    match session.controller.load_video(&url) {
+                        Ok(()) => {
+                            if let Err(error) = session.controller.play() {
+                                eprintln!("[MutsukiTube] Play error: {error}");
+                            }
 
-                        println!(
-                            "[MutsukiTube] Embedded video requested: \
-                         {video_id}"
-                        );
-                    }
-
-                    Err(error) => {
-                        eprintln!("[MutsukiTube] Embedded load error: {error}");
-
-                        if let Err(fallback_error) = ExternalMpvPlayer::play_youtube(&video_id) {
-                            eprintln!(
-                                "[MutsukiTube] Fallback error: \
-                             {fallback_error}"
+                            println!(
+                                "[MutsukiTube] Embedded video requested: \
+                                 {video_id}"
                             );
                         }
+                        Err(error) => {
+                            eprintln!("[MutsukiTube] Embedded load error: {error}");
+
+                            video_loading.set(false);
+                            ui.set_playback_state("error".into());
+
+                            if let Err(fallback_error) = ExternalMpvPlayer::play_youtube(&video_id)
+                            {
+                                eprintln!(
+                                    "[MutsukiTube] Fallback error: \
+                                     {fallback_error}"
+                                );
+                            }
+                        }
+                    }
+                }
+
+                let is_loading = video_loading.get();
+
+                let should_show_surface =
+                    is_watch && !is_minimized && !is_loading && geometry.is_some();
+
+                if let Some(surface) = session.surface.as_ref() {
+                    if should_show_surface {
+                        if !surface_visible.get() {
+                            surface.show();
+                            surface_visible.set(true);
+
+                            println!("[MutsukiTube] Video surface shown");
+                        }
+                    } else if surface_visible.get() {
+                        surface.hide();
+                        surface_visible.set(false);
+
+                        println!("[MutsukiTube] Video surface hidden (loading)");
                     }
                 }
             },
@@ -405,8 +432,6 @@ fn main() -> Result<(), slint::PlatformError> {
     #[cfg(target_os = "windows")]
     {
         surface_timer.stop();
-
-        // Hentikan controller dan bebaskan HWND.
         native_session.borrow_mut().shutdown();
     }
 

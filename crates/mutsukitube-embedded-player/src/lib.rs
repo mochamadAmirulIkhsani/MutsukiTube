@@ -67,8 +67,6 @@ impl EmbeddedMpvPlayer {
             return Err("Invalid HWND".into());
         }
 
-        // Nilai HWND harus diperlakukan sebagai ID window,
-        // bukan pointer yang dapat di-dereference.
         let window_id = (hwnd as u32).to_string();
 
         let mpv = Mpv::builder()
@@ -113,8 +111,6 @@ impl EmbeddedMpvPlayer {
         let mut events = Vec::new();
 
         loop {
-            // Ganti self.mpv dengan nama field Mpv
-            // yang memang digunakan pada struct milikmu.
             let Some(event) = self.mpv.poll_event() else {
                 break;
             };

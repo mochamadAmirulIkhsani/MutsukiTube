@@ -52,19 +52,11 @@ pub async fn download_thumbnail(url: &str) -> Option<Vec<u8>> {
 
     let cache_path = cache_path(url);
 
-    //
-    // 1. coba cache dulu
-    //
-
     if let Some(path) = cache_path.as_ref() {
         if let Some(data) = read_cache(path).await {
             return Some(data);
         }
     }
-
-    //
-    // 2. download
-    //
 
     let response = reqwest::get(url).await.ok()?;
 
@@ -75,10 +67,6 @@ pub async fn download_thumbnail(url: &str) -> Option<Vec<u8>> {
     let bytes = response.bytes().await.ok()?;
 
     let data = bytes.to_vec();
-
-    //
-    // 3. simpan ke cache
-    //
 
     if let Some(path) = cache_path {
         save_cache(&path, &data).await;
