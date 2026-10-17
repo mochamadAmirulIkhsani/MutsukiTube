@@ -12,6 +12,7 @@ use std::{
 };
 
 use mutsukitube_anime::{AnimeManager, ProviderRegistry};
+use mutsukitube_plugin_updater::plugin_base_dir;
 use mutsukitube_storage::{get_playlist_names, get_provider_mode};
 use slint::{ComponentHandle, ModelRc, VecModel};
 
@@ -67,6 +68,16 @@ fn main() -> Result<(), slint::PlatformError> {
         provider_mode: saved_provider.clone(),
         ..AppState::default()
     }));
+
+    if std::env::var("MUTSUKITUBE_ANIME_PLUGIN_DIR").is_err() {
+        let installed_dir = plugin_base_dir();
+
+        if installed_dir.exists() {
+            unsafe {
+                std::env::set_var("MUTSUKITUBE_ANIME_PLUGIN_DIR", &installed_dir);
+            }
+        }
+    }
 
     let anime_registry = ProviderRegistry::from_env();
 

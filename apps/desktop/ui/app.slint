@@ -80,6 +80,7 @@ export component AppWindow inherits Window {
     callback anime-select-episode(int);
     callback anime-play();
     callback anime-play-ready(string, string);
+    callback anime-install-plugins();
     callback anime-quality-changed(string);
 
     callback show-library();
@@ -187,6 +188,10 @@ export component AppWindow inherits Window {
 
         play => {
             root.anime-play();
+        }
+
+        install-plugins => {
+            root.anime-install-plugins();
         }
 
         quality-changed(value) => {

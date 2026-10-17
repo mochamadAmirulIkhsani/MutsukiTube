@@ -25,6 +25,7 @@ export component AnimePage inherits Rectangle {
     callback play();
     callback back();
     callback quality-changed(string);
+    callback install-plugins();
 
     background: #0f0f0f;
 
@@ -46,6 +47,11 @@ export component AnimePage inherits Rectangle {
             Button {
                 text: "Back";
                 clicked => { root.back(); }
+            }
+
+            Button {
+                text: "Install Plugins";
+                clicked => { root.install-plugins(); }
             }
         }
 

@@ -1,6 +1,8 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
+use mutsukitube_plugin_updater as updater;
+
 use slint::{ComponentHandle, ModelRc};
 
 use crate::{AppWindow, app_context::AppContext, state::AppState};
@@ -16,6 +18,7 @@ pub fn register(
     register_select_episode(ui, context);
     register_quality(ui, context);
     register_play_windows(ui, context, session);
+    register_install(ui, context);
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -25,6 +28,7 @@ pub fn register(ui: &AppWindow, context: &AppContext) {
     register_select_episode(ui, context);
     register_quality(ui, context);
     register_play_other(ui, context);
+    register_install(ui, context);
 }
 
 fn register_search(ui: &AppWindow, context: &AppContext) {
@@ -381,6 +385,151 @@ fn register_play_windows(
 fn register_play_other(ui: &AppWindow, context: &AppContext) {
     let _ = (ui, context);
 }
+fn register_install(ui: &AppWindow, context: &AppContext) {
+    let weak = ui.as_weak();
+    let context = context.clone();
+
+    ui.on_anime_install_plugins(move || {
+        let weak = weak.clone();
+        let context = context.clone();
+        let handle = context.handle.clone();
+
+        handle.spawn(async move {
+            let registry_url = match std::env::var("MUTSUKITUBE_PLUGIN_REGISTRY_URL") {
+                Ok(value) if !value.trim().is_empty() => value,
+                _ => {
+                    let _ = weak.upgrade_in_event_loop(|ui| {
+                        ui.set_anime_status_text(
+                            "Plugin registry URL is not configured".into(),
+                        );
+                    });
+                    return;
+                }
+            };
+
+            let public_key = match std::env::var("MUTSUKITUBE_PLUGIN_PUBLIC_KEY") {
+                Ok(value) if !value.trim().is_empty() => value,
+                _ => {
+                    let _ = weak.upgrade_in_event_loop(|ui| {
+                        ui.set_anime_status_text(
+                            "Plugin public key is not configured".into(),
+                        );
+                    });
+                    return;
+                }
+            };
+
+            let manifest_url = format!("{}/manifest.json", registry_url.trim_end_matches('/'));
+            let signature_url = format!("{}/manifest.sig", registry_url.trim_end_matches('/'));
+
+            let client = match reqwest::Client::builder().build() {
+                Ok(client) => client,
+                Err(error) => {
+                    let message = format!("HTTP client error: {error}");
+                    let _ = weak.upgrade_in_event_loop(move |ui| {
+                        ui.set_anime_status_text(message.into());
+                    });
+                    return;
+                }
+            };
+
+            let manifest_bytes = match updater::download_artifact(&client, &manifest_url, updater::MAX_MANIFEST_BYTES).await {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    let message = format!("Manifest download failed: {error}");
+                    let _ = weak.upgrade_in_event_loop(move |ui| {
+                        ui.set_anime_status_text(message.into());
+                    });
+                    return;
+                }
+            };
+
+            let signature_bytes = match updater::download_artifact(&client, &signature_url, 4096).await {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    let message = format!("Signature download failed: {error}");
+                    let _ = weak.upgrade_in_event_loop(move |ui| {
+                        ui.set_anime_status_text(message.into());
+                    });
+                    return;
+                }
+            };
+
+            let signature_hex = String::from_utf8_lossy(&signature_bytes).to_string();
+            let manifest = match updater::verify_manifest(&manifest_bytes, &signature_hex, &public_key) {
+                Ok(manifest) => manifest,
+                Err(error) => {
+                    let message = format!("Manifest verification failed: {error}");
+                    let _ = weak.upgrade_in_event_loop(move |ui| {
+                        ui.set_anime_status_text(message.into());
+                    });
+                    return;
+                }
+            };
+
+            let base_dir = updater::plugin_base_dir();
+            let artifacts = updater::select_artifacts(&manifest, "windows", "amd64");
+
+            for artifact in artifacts {
+                let url = match updater::artifact_download_url(&manifest, artifact) {
+                    Ok(url) => url,
+                    Err(error) => {
+                        let message = format!("Invalid artifact URL: {error}");
+                        let _ = weak.upgrade_in_event_loop(move |ui| {
+                            ui.set_anime_status_text(message.into());
+                        });
+                        return;
+                    }
+                };
+
+                let bytes = match updater::download_artifact(&client, &url, updater::MAX_ARTIFACT_BYTES).await {
+                    Ok(bytes) => bytes,
+                    Err(error) => {
+                        let message = format!("Download failed: {error}");
+                        let _ = weak.upgrade_in_event_loop(move |ui| {
+                            ui.set_anime_status_text(message.into());
+                        });
+                        return;
+                    }
+                };
+
+                if let Err(error) = updater::verify_artifact_bytes(artifact, &bytes) {
+                    let message = format!("Artifact verification failed: {error}");
+                    let _ = weak.upgrade_in_event_loop(move |ui| {
+                        ui.set_anime_status_text(message.into());
+                    });
+                    return;
+                }
+
+                if let Err(error) = updater::install_artifact(&base_dir, &manifest.version, artifact, &bytes) {
+                    let message = format!("Install failed: {error}");
+                    let _ = weak.upgrade_in_event_loop(move |ui| {
+                        ui.set_anime_status_text(message.into());
+                    });
+                    return;
+                }
+            }
+
+            if let Err(error) = updater::activate_version(&base_dir, &manifest.version) {
+                let message = format!("Activation failed: {error}");
+                let _ = weak.upgrade_in_event_loop(move |ui| {
+                    ui.set_anime_status_text(message.into());
+                });
+                return;
+            }
+
+            let _ = weak.upgrade_in_event_loop(move |ui| {
+                ui.set_anime_status_text(format!("Plugins {} installed", manifest.version).into());
+            });
+
+            // Best-effort reload without changing the manager type.
+            unsafe {
+                std::env::set_var("MUTSUKITUBE_ANIME_PLUGIN_DIR", &base_dir);
+            }
+        });
+    });
+}
+
 fn encode_headers(headers: &[(String, String)]) -> String {
     headers
         .iter()
