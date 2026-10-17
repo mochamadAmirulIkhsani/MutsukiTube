@@ -69,6 +69,45 @@ fn main() {
             .unwrap_or("")
             .to_string();
 
+        let error_mode_category = match mode.as_str() {
+            "network-error" => Some("NETWORK_ERROR"),
+            "rate-limited" => Some("RATE_LIMITED"),
+            "provider-unavailable" => Some("PROVIDER_UNAVAILABLE"),
+            "parser-changed" => Some("PARSER_CHANGED"),
+            "auth-required" => Some("AUTH_REQUIRED"),
+            "no-mirror" => Some("NO_PLAYABLE_MIRROR"),
+            "anime-not-found" => Some("ANIME_NOT_FOUND"),
+            "episode-not-found" => Some("EPISODE_NOT_FOUND"),
+            "unsupported" => Some("UNSUPPORTED"),
+            _ => None,
+        };
+
+        if let Some(code) = error_mode_category {
+            let response = json!({
+                "protocolVersion": 1,
+                "requestId": request_id,
+                "success": false,
+                "error": {"code": code, "message": format!("{}: simulated", code), "retryable": false}
+            });
+            // Rate limited and network errors are retryable per Go semantics; set retryable true for those.
+            let response = if code == "NETWORK_ERROR"
+                || code == "TIMEOUT"
+                || code == "PROVIDER_UNAVAILABLE"
+            {
+                json!({
+                    "protocolVersion": 1,
+                    "requestId": request_id,
+                    "success": false,
+                    "error": {"code": code, "message": format!("{}: simulated", code), "retryable": true}
+                })
+            } else {
+                response
+            };
+            let _ = writeln!(stdout, "{}", response);
+            let _ = stdout.flush();
+            continue;
+        }
+
         match mode.as_str() {
             "timeout" => {
                 thread::sleep(Duration::from_secs(10));
@@ -151,6 +190,18 @@ fn main() {
                         "requestId": request_id,
                         "success": true,
                         "data": {"results": []}
+                    })
+                } else if mode == "echo-title" {
+                    json!({
+                        "protocolVersion": 1,
+                        "requestId": request_id,
+                        "success": true,
+                        "data": {"results": [{
+                            "providerId": "fake",
+                            "title": query,
+                            "url": format!("https://fake.example/anime/{}", query),
+                            "thumbnailUrl": "https://fake.example/thumb.jpg"
+                        }]}
                     })
                 } else {
                     json!({

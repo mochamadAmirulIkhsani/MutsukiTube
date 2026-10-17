@@ -1,5 +1,10 @@
-use mutsukitube_anime::{AnimeManager, ProcessTimeouts, ProviderConfig, ProviderRegistry};
+use mutsukitube_anime::{
+    Anime, AnimeManager, Episode, FallbackPolicy, ProcessTimeouts, ProviderConfig,
+    ProviderRegistry, SearchFallbackOutcome, StreamFallbackOutcome,
+};
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 fn fake_bin() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_fake_anime_provider"))
@@ -208,6 +213,332 @@ async fn disabled_provider_rejected() {
     let manager = AnimeManager::new(registry);
     let err = manager.info("fake").await.unwrap_err();
     assert_eq!(err.category, mutsukitube_anime::CATEGORY_DISABLED_PROVIDER);
+}
+
+fn fallback_registry(providers: Vec<(&str, &str)>) -> ProviderRegistry {
+    let mut configs = Vec::new();
+    for (id, mode) in providers {
+        configs.push(ProviderConfig {
+            id: id.to_string(),
+            display_name: id.to_string(),
+            executable_path: fake_bin(),
+            executable_args: vec![mode.to_string()],
+            enabled: true,
+            priority: configs.len() as u32 + 1,
+            expected_protocol: mutsukitube_anime::PROTOCOL_VERSION,
+        });
+    }
+    ProviderRegistry::new(configs)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn search_auto_primary_success() {
+    let registry = fallback_registry(vec![("primary", "ok"), ("backup", "network-error")]);
+    let manager = AnimeManager::new(registry);
+    let outcome = manager.search_auto("Naruto").await.unwrap();
+    assert_eq!(outcome.provider_id.as_deref(), Some("primary"));
+    assert_eq!(outcome.results.len(), 1);
+    manager.shutdown_all().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn search_auto_empty_falls_back() {
+    let registry = fallback_registry(vec![("primary", "ok"), ("backup", "ok")]);
+    // Make primary return empty by using query "empty".
+    let manager = AnimeManager::new(registry);
+    let outcome = manager.search_auto("empty").await.unwrap();
+    // Both return empty; no provider selected.
+    assert!(outcome.provider_id.is_none());
+    assert!(outcome.results.is_empty());
+    assert!(outcome.attempts.len() >= 2);
+    manager.shutdown_all().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn search_auto_network_error_falls_back() {
+    let registry = fallback_registry(vec![("primary", "network-error"), ("backup", "ok")]);
+    let manager = AnimeManager::new(registry);
+    let outcome = manager.search_auto("Naruto").await.unwrap();
+    assert_eq!(outcome.provider_id.as_deref(), Some("backup"));
+    assert_eq!(outcome.results.len(), 1);
+    manager.shutdown_all().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn search_auto_timeout_falls_back() {
+    let timeouts = ProcessTimeouts {
+        info_ms: 100,
+        search_ms: 200,
+        episodes_ms: 200,
+        heights_ms: 200,
+        stream_ms: 200,
+        startup_ms: 100,
+        shutdown_ms: 100,
+        max_pending: 64,
+    };
+    let registry = fallback_registry(vec![("primary", "timeout"), ("backup", "ok")]);
+    let policy = FallbackPolicy::default();
+    let manager = AnimeManager::with_timeouts_and_policy(registry, timeouts, policy);
+    let outcome = manager.search_auto("Naruto").await.unwrap();
+    assert_eq!(outcome.provider_id.as_deref(), Some("backup"));
+    manager.shutdown_all().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn search_auto_all_unavailable() {
+    let registry = fallback_registry(vec![
+        ("primary", "network-error"),
+        ("backup", "provider-unavailable"),
+    ]);
+    let manager = AnimeManager::new(registry);
+    let outcome = manager.search_auto("Naruto").await.unwrap();
+    assert!(outcome.provider_id.is_none());
+    assert!(outcome.results.is_empty());
+    assert_eq!(outcome.attempts.len(), 2);
+    manager.shutdown_all().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn search_auto_disabled_skipped() {
+    let mut registry = fallback_registry(vec![("primary", "ok"), ("backup", "ok")]);
+    // Disable primary by rebuilding config.
+    let configs = vec![
+        ProviderConfig {
+            id: "primary".into(),
+            display_name: "primary".into(),
+            executable_path: fake_bin(),
+            executable_args: vec!["ok".into()],
+            enabled: false,
+            priority: 1,
+            expected_protocol: mutsukitube_anime::PROTOCOL_VERSION,
+        },
+        ProviderConfig {
+            id: "backup".into(),
+            display_name: "backup".into(),
+            executable_path: fake_bin(),
+            executable_args: vec!["ok".into()],
+            enabled: true,
+            priority: 2,
+            expected_protocol: mutsukitube_anime::PROTOCOL_VERSION,
+        },
+    ];
+    registry = ProviderRegistry::new(configs);
+    let manager = AnimeManager::new(registry);
+    let outcome = manager.search_auto("Naruto").await.unwrap();
+    assert_eq!(outcome.provider_id.as_deref(), Some("backup"));
+    manager.shutdown_all().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn search_auto_cancelled() {
+    let registry = fallback_registry(vec![("primary", "timeout"), ("backup", "ok")]);
+    let manager = AnimeManager::new(registry);
+    let cancel = Arc::new(AtomicBool::new(true));
+    let outcome = manager
+        .search_auto_with_cancel("Naruto", cancel)
+        .await
+        .unwrap();
+    assert!(outcome.cancelled);
+    manager.shutdown_all().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn search_auto_multiple_failures_then_success() {
+    let registry = fallback_registry(vec![
+        ("p1", "network-error"),
+        ("p2", "parser-changed"),
+        ("p3", "ok"),
+    ]);
+    let manager = AnimeManager::new(registry);
+    let outcome = manager.search_auto("Naruto").await.unwrap();
+    assert_eq!(outcome.provider_id.as_deref(), Some("p3"));
+    assert_eq!(outcome.attempts.len(), 3);
+    manager.shutdown_all().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn stream_fallback_primary_success() {
+    let registry = fallback_registry(vec![("primary", "ok"), ("backup", "echo-title")]);
+    let manager = AnimeManager::new(registry);
+    let selected_anime = Anime {
+        provider_id: "primary".into(),
+        title: "Naruto".into(),
+        url: "https://primary/anime/1".into(),
+        thumbnail_url: None,
+        alt_titles: vec![],
+        year: Some(2002),
+    };
+    let selected_episode = Episode {
+        provider_id: "primary".into(),
+        number: 1,
+        title: "Episode 1".into(),
+        url: "https://primary/episode/1".into(),
+    };
+    let outcome = manager
+        .stream_with_fallback(
+            &selected_anime,
+            &selected_episode,
+            "720p",
+            Arc::new(AtomicBool::new(false)),
+        )
+        .await
+        .unwrap();
+    assert_eq!(outcome.provider_id, "primary");
+    assert_eq!(outcome.stream.url, "https://example.com/video.mp4");
+    manager.shutdown_all().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn stream_fallback_backup_success() {
+    let registry = fallback_registry(vec![("primary", "no-mirror"), ("backup", "echo-title")]);
+    let manager = AnimeManager::new(registry);
+    let selected_anime = Anime {
+        provider_id: "primary".into(),
+        title: "Naruto".into(),
+        url: "https://primary/anime/1".into(),
+        thumbnail_url: None,
+        alt_titles: vec![],
+        year: Some(2002),
+    };
+    let selected_episode = Episode {
+        provider_id: "primary".into(),
+        number: 1,
+        title: "Episode 1".into(),
+        url: "https://primary/episode/1".into(),
+    };
+    let outcome = manager
+        .stream_with_fallback(
+            &selected_anime,
+            &selected_episode,
+            "720p",
+            Arc::new(AtomicBool::new(false)),
+        )
+        .await
+        .unwrap();
+    assert_eq!(outcome.provider_id, "backup");
+    assert_eq!(outcome.stream.url, "https://example.com/video.mp4");
+    manager.shutdown_all().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn stream_fallback_identity_mismatch() {
+    let registry = fallback_registry(vec![("primary", "no-mirror"), ("backup", "ok")]);
+    let manager = AnimeManager::new(registry);
+    let selected_anime = Anime {
+        provider_id: "primary".into(),
+        title: "Naruto".into(),
+        url: "https://primary/anime/1".into(),
+        thumbnail_url: None,
+        alt_titles: vec![],
+        year: Some(2002),
+    };
+    let selected_episode = Episode {
+        provider_id: "primary".into(),
+        number: 1,
+        title: "Episode 1".into(),
+        url: "https://primary/episode/1".into(),
+    };
+    let err = manager
+        .stream_with_fallback(
+            &selected_anime,
+            &selected_episode,
+            "720p",
+            Arc::new(AtomicBool::new(false)),
+        )
+        .await
+        .unwrap_err();
+    // All providers exhausted due to identity mismatch / no mirror.
+    assert!(!err.category.is_empty());
+    manager.shutdown_all().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn stream_fallback_episode_mismatch() {
+    let registry = fallback_registry(vec![("primary", "no-mirror"), ("backup", "echo-title")]);
+    let manager = AnimeManager::new(registry);
+    let selected_anime = Anime {
+        provider_id: "primary".into(),
+        title: "Naruto".into(),
+        url: "https://primary/anime/1".into(),
+        thumbnail_url: None,
+        alt_titles: vec![],
+        year: Some(2002),
+    };
+    let selected_episode = Episode {
+        provider_id: "primary".into(),
+        number: 2,
+        title: "Episode 2".into(),
+        url: "https://primary/episode/2".into(),
+    };
+    let err = manager
+        .stream_with_fallback(
+            &selected_anime,
+            &selected_episode,
+            "720p",
+            Arc::new(AtomicBool::new(false)),
+        )
+        .await
+        .unwrap_err();
+    assert!(!err.category.is_empty());
+    manager.shutdown_all().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn stream_fallback_all_exhausted() {
+    let registry = fallback_registry(vec![("primary", "no-mirror"), ("backup", "no-mirror")]);
+    let manager = AnimeManager::new(registry);
+    let selected_anime = Anime {
+        provider_id: "primary".into(),
+        title: "Naruto".into(),
+        url: "https://primary/anime/1".into(),
+        thumbnail_url: None,
+        alt_titles: vec![],
+        year: Some(2002),
+    };
+    let selected_episode = Episode {
+        provider_id: "primary".into(),
+        number: 1,
+        title: "Episode 1".into(),
+        url: "https://primary/episode/1".into(),
+    };
+    let err = manager
+        .stream_with_fallback(
+            &selected_anime,
+            &selected_episode,
+            "720p",
+            Arc::new(AtomicBool::new(false)),
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(err.category, mutsukitube_anime::CATEGORY_NO_PLAYABLE_MIRROR);
+    manager.shutdown_all().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn stream_fallback_cancelled() {
+    let registry = fallback_registry(vec![("primary", "no-mirror"), ("backup", "echo-title")]);
+    let manager = AnimeManager::new(registry);
+    let selected_anime = Anime {
+        provider_id: "primary".into(),
+        title: "Naruto".into(),
+        url: "https://primary/anime/1".into(),
+        thumbnail_url: None,
+        alt_titles: vec![],
+        year: Some(2002),
+    };
+    let selected_episode = Episode {
+        provider_id: "primary".into(),
+        number: 1,
+        title: "Episode 1".into(),
+        url: "https://primary/episode/1".into(),
+    };
+    let cancel = Arc::new(AtomicBool::new(true));
+    let err = manager
+        .stream_with_fallback(&selected_anime, &selected_episode, "720p", cancel)
+        .await
+        .unwrap_err();
+    assert_eq!(err.category, mutsukitube_anime::CATEGORY_CANCELLED);
+    manager.shutdown_all().await;
 }
 
 #[tokio::test(flavor = "multi_thread")]

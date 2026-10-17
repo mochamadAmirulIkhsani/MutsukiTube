@@ -1,24 +1,33 @@
+use crate::cache::BoundedCache;
 use crate::errors::*;
+use crate::fallback::{
+    FallbackPolicy, ProviderAttempt, SearchFallbackOutcome, StreamFallbackOutcome,
+};
+use crate::health::ProviderHealthTracker;
+use crate::identity::{
+    AnimeIdentity, MatchConfidence, VerifiedAnimeMapping, find_matching_anime,
+    find_matching_episode,
+};
 use crate::models::{Anime, Episode, PROTOCOL_VERSION, PluginInfo, StreamInfo};
 use crate::process::{ProcessTimeouts, ProviderProcess};
 use crate::registry::ProviderRegistry;
 use serde_json::json;
 use std::collections::HashMap;
-use std::sync::Mutex as StdMutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex as StdMutex};
 
 pub struct AnimeManager {
     registry: ProviderRegistry,
     processes: StdMutex<HashMap<String, std::sync::Arc<ProviderProcess>>>,
     timeouts: ProcessTimeouts,
+    policy: FallbackPolicy,
+    health: ProviderHealthTracker,
+    identity_cache: StdMutex<BoundedCache<String, VerifiedAnimeMapping>>,
 }
 
 impl AnimeManager {
     pub fn new(registry: ProviderRegistry) -> Self {
-        Self {
-            registry,
-            processes: StdMutex::new(HashMap::new()),
-            timeouts: ProcessTimeouts::default(),
-        }
+        Self::with_policy(registry, FallbackPolicy::default())
     }
 
     pub fn with_timeouts(registry: ProviderRegistry, timeouts: ProcessTimeouts) -> Self {
@@ -26,6 +35,44 @@ impl AnimeManager {
             registry,
             processes: StdMutex::new(HashMap::new()),
             timeouts,
+            policy: FallbackPolicy::default(),
+            health: ProviderHealthTracker::new(),
+            identity_cache: StdMutex::new(BoundedCache::new(
+                128,
+                std::time::Duration::from_secs(600),
+            )),
+        }
+    }
+
+    pub fn with_policy(registry: ProviderRegistry, policy: FallbackPolicy) -> Self {
+        Self {
+            registry,
+            processes: StdMutex::new(HashMap::new()),
+            timeouts: ProcessTimeouts::default(),
+            policy,
+            health: ProviderHealthTracker::new(),
+            identity_cache: StdMutex::new(BoundedCache::new(
+                128,
+                std::time::Duration::from_secs(600),
+            )),
+        }
+    }
+
+    pub fn with_timeouts_and_policy(
+        registry: ProviderRegistry,
+        timeouts: ProcessTimeouts,
+        policy: FallbackPolicy,
+    ) -> Self {
+        Self {
+            registry,
+            processes: StdMutex::new(HashMap::new()),
+            timeouts,
+            policy,
+            health: ProviderHealthTracker::new(),
+            identity_cache: StdMutex::new(BoundedCache::new(
+                128,
+                std::time::Duration::from_secs(600),
+            )),
         }
     }
 
@@ -234,6 +281,305 @@ impl AnimeManager {
             .map_err(|e| AnimeError::new(CATEGORY_MALFORMED_RESPONSE, e.to_string(), false))?;
         // The Go response wraps stream fields directly in data, not under a "stream" key.
         Ok(stream)
+    }
+
+    pub fn policy(&self) -> &FallbackPolicy {
+        &self.policy
+    }
+
+    pub fn health(&self) -> &ProviderHealthTracker {
+        &self.health
+    }
+
+    pub async fn search_auto(&self, query: &str) -> Result<SearchFallbackOutcome, AnimeError> {
+        self.search_auto_with_cancel(query, Arc::new(AtomicBool::new(false)))
+            .await
+    }
+
+    pub async fn search_auto_with_cancel(
+        &self,
+        query: &str,
+        cancel: Arc<AtomicBool>,
+    ) -> Result<SearchFallbackOutcome, AnimeError> {
+        if query.trim().is_empty() {
+            return Err(AnimeError::new(
+                CATEGORY_UNSUPPORTED,
+                "search query is empty",
+                false,
+            ));
+        }
+
+        let mut attempts = Vec::new();
+        let mut cancelled = false;
+        let providers = self.registry.ids_by_priority();
+        let mut attempt_count = 0usize;
+
+        for provider_id in providers {
+            if cancel.load(Ordering::Relaxed) {
+                cancelled = true;
+                break;
+            }
+            if attempt_count >= self.policy.max_provider_attempts {
+                break;
+            }
+            attempt_count += 1;
+
+            let now = std::time::Instant::now();
+            if !self.health.is_available(&provider_id, now) {
+                attempts.push(ProviderAttempt {
+                    provider_id: provider_id.clone(),
+                    reason: crate::fallback::FallbackReason::CoolingDown,
+                    error: None,
+                });
+                continue;
+            }
+
+            match self.search(&provider_id, query).await {
+                Ok(results) => {
+                    if results.is_empty() {
+                        self.health.record_empty(&provider_id);
+                        attempts.push(ProviderAttempt {
+                            provider_id: provider_id.clone(),
+                            reason: self.policy.reason_for_empty_search(),
+                            error: None,
+                        });
+                        if self.policy.decision_for_empty_search()
+                            == crate::fallback::FallbackAction::Continue
+                        {
+                            continue;
+                        }
+                        break;
+                    }
+
+                    self.health.record_success(&provider_id);
+                    attempts.push(ProviderAttempt {
+                        provider_id: provider_id.clone(),
+                        reason: crate::fallback::FallbackReason::Success,
+                        error: None,
+                    });
+                    return Ok(SearchFallbackOutcome {
+                        results,
+                        provider_id: Some(provider_id),
+                        attempts,
+                        cancelled: false,
+                    });
+                }
+                Err(error) => {
+                    let action = self.policy.decision_for_error(&error);
+                    let reason = self.policy.reason_for_error(&error);
+                    self.health.record_failure(
+                        &provider_id,
+                        &error,
+                        now,
+                        self.policy.failure_threshold,
+                        self.policy.base_cooldown,
+                        self.policy.max_cooldown,
+                    );
+                    attempts.push(ProviderAttempt {
+                        provider_id: provider_id.clone(),
+                        reason,
+                        error: Some(error),
+                    });
+                    if action == crate::fallback::FallbackAction::Stop {
+                        break;
+                    }
+                }
+            }
+        }
+
+        Ok(SearchFallbackOutcome {
+            results: Vec::new(),
+            provider_id: None,
+            attempts,
+            cancelled,
+        })
+    }
+
+    pub async fn stream_with_fallback(
+        &self,
+        selected_anime: &Anime,
+        selected_episode: &Episode,
+        quality: &str,
+        cancel: Arc<AtomicBool>,
+    ) -> Result<StreamFallbackOutcome, AnimeError> {
+        let mut attempts = Vec::new();
+        let mut providers = vec![selected_anime.provider_id.clone()];
+        for id in self.registry.ids_by_priority() {
+            if id != selected_anime.provider_id {
+                providers.push(id);
+            }
+        }
+
+        let mut attempt_count = 0usize;
+        for provider_id in providers {
+            if cancel.load(Ordering::Relaxed) {
+                return Err(AnimeError::new(
+                    CATEGORY_CANCELLED,
+                    "stream fallback cancelled",
+                    true,
+                ));
+            }
+            if attempt_count >= self.policy.max_provider_attempts {
+                break;
+            }
+            attempt_count += 1;
+
+            let now = std::time::Instant::now();
+            if !self.health.is_available(&provider_id, now) {
+                attempts.push(ProviderAttempt {
+                    provider_id: provider_id.clone(),
+                    reason: crate::fallback::FallbackReason::CoolingDown,
+                    error: None,
+                });
+                continue;
+            }
+
+            let (target_anime, target_episode) = if provider_id == selected_anime.provider_id {
+                (selected_anime.clone(), selected_episode.clone())
+            } else {
+                let search_results = match self.search(&provider_id, &selected_anime.title).await {
+                    Ok(results) => results,
+                    Err(error) => {
+                        let reason = self.policy.reason_for_error(&error);
+                        self.health.record_failure(
+                            &provider_id,
+                            &error,
+                            now,
+                            self.policy.failure_threshold,
+                            self.policy.base_cooldown,
+                            self.policy.max_cooldown,
+                        );
+                        attempts.push(ProviderAttempt {
+                            provider_id: provider_id.clone(),
+                            reason,
+                            error: Some(error),
+                        });
+                        continue;
+                    }
+                };
+
+                let (matched_anime, confidence) =
+                    find_matching_anime(selected_anime, &search_results);
+                if confidence != MatchConfidence::Exact && confidence != MatchConfidence::Alias {
+                    attempts.push(ProviderAttempt {
+                        provider_id: provider_id.clone(),
+                        reason: if confidence == MatchConfidence::Ambiguous {
+                            crate::fallback::FallbackReason::AmbiguousMatch
+                        } else {
+                            crate::fallback::FallbackReason::IdentityMismatch
+                        },
+                        error: None,
+                    });
+                    continue;
+                }
+                let matched_anime = match matched_anime {
+                    Some(anime) => anime,
+                    None => {
+                        attempts.push(ProviderAttempt {
+                            provider_id: provider_id.clone(),
+                            reason: crate::fallback::FallbackReason::IdentityMismatch,
+                            error: None,
+                        });
+                        continue;
+                    }
+                };
+
+                let episodes = match self.episodes(&provider_id, &matched_anime.url).await {
+                    Ok(episodes) => episodes,
+                    Err(error) => {
+                        let reason = self.policy.reason_for_error(&error);
+                        self.health.record_failure(
+                            &provider_id,
+                            &error,
+                            now,
+                            self.policy.failure_threshold,
+                            self.policy.base_cooldown,
+                            self.policy.max_cooldown,
+                        );
+                        attempts.push(ProviderAttempt {
+                            provider_id: provider_id.clone(),
+                            reason,
+                            error: Some(error),
+                        });
+                        continue;
+                    }
+                };
+
+                match find_matching_episode(selected_episode, &episodes) {
+                    Some(episode) => (matched_anime, episode),
+                    None => {
+                        attempts.push(ProviderAttempt {
+                            provider_id: provider_id.clone(),
+                            reason: crate::fallback::FallbackReason::EpisodeMismatch,
+                            error: None,
+                        });
+                        continue;
+                    }
+                }
+            };
+
+            match self
+                .stream(&provider_id, &target_episode.url, quality)
+                .await
+            {
+                Ok(stream) => {
+                    self.health.record_success(&provider_id);
+                    let cache_key = format!(
+                        "{}:{}->{}",
+                        selected_anime.provider_id, selected_anime.url, provider_id
+                    );
+                    self.identity_cache.lock().unwrap().insert(
+                        cache_key,
+                        VerifiedAnimeMapping {
+                            source_provider: selected_anime.provider_id.clone(),
+                            source_url: selected_anime.url.clone(),
+                            target_provider: provider_id.clone(),
+                            target_url: target_anime.url.clone(),
+                            identity: AnimeIdentity::from_anime(&target_anime),
+                        },
+                        std::time::Instant::now(),
+                    );
+                    attempts.push(ProviderAttempt {
+                        provider_id: provider_id.clone(),
+                        reason: crate::fallback::FallbackReason::Success,
+                        error: None,
+                    });
+                    return Ok(StreamFallbackOutcome {
+                        stream,
+                        provider_id,
+                        anime_url: target_anime.url,
+                        episode_url: target_episode.url,
+                        attempts,
+                    });
+                }
+                Err(error) => {
+                    let action = self.policy.decision_for_error(&error);
+                    let reason = self.policy.reason_for_error(&error);
+                    self.health.record_failure(
+                        &provider_id,
+                        &error,
+                        now,
+                        self.policy.failure_threshold,
+                        self.policy.base_cooldown,
+                        self.policy.max_cooldown,
+                    );
+                    attempts.push(ProviderAttempt {
+                        provider_id: provider_id.clone(),
+                        reason,
+                        error: Some(error),
+                    });
+                    if action == crate::fallback::FallbackAction::Stop {
+                        break;
+                    }
+                }
+            }
+        }
+
+        Err(AnimeError::new(
+            CATEGORY_NO_PLAYABLE_MIRROR,
+            "all eligible providers exhausted",
+            false,
+        ))
     }
 
     pub async fn shutdown_all(&self) {

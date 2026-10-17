@@ -26,6 +26,7 @@ pub const CATEGORY_DISABLED_PROVIDER: &str = "DISABLED_PROVIDER";
 pub const CATEGORY_INVALID_EXECUTABLE: &str = "INVALID_EXECUTABLE_PATH";
 pub const CATEGORY_PENDING_LIMIT: &str = "PENDING_REQUEST_LIMIT";
 pub const CATEGORY_PROVIDER_NOT_FOUND: &str = "PROVIDER_NOT_FOUND";
+pub const CATEGORY_CANCELLED: &str = "CANCELLED";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AnimeError {
