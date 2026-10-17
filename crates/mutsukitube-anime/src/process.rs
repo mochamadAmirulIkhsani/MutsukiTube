@@ -332,7 +332,7 @@ impl ProviderProcess {
             max_bytes,
             provider_id.clone(),
         ));
-        let stderr_handle = tokio::spawn(stderr_reader(state_arc, stderr));
+        let stderr_handle = tokio::spawn(stderr_reader(state_arc, stderr, provider_id.clone()));
 
         state.child = Some(child);
         state.stdin = Some(stdin);
@@ -499,7 +499,11 @@ async fn stdout_reader(
     }
 }
 
-async fn stderr_reader(state: Arc<Mutex<ProcessState>>, stderr: tokio::process::ChildStderr) {
+async fn stderr_reader(
+    state: Arc<Mutex<ProcessState>>,
+    stderr: tokio::process::ChildStderr,
+    provider_id: String,
+) {
     let mut reader = BufReader::new(stderr);
     let mut line = String::new();
     loop {
@@ -512,10 +516,14 @@ async fn stderr_reader(state: Arc<Mutex<ProcessState>>, stderr: tokio::process::
                     continue;
                 }
                 let mut st = state.lock().await;
-                st.stderr_tail.push(trimmed);
+                st.stderr_tail.push(trimmed.clone());
                 if st.stderr_tail.len() > 50 {
                     let excess = st.stderr_tail.len() - 50;
                     st.stderr_tail.drain(0..excess);
+                }
+                drop(st);
+                if debug_logging_enabled() {
+                    eprintln!("[mutsukitube-anime][{}] stderr: {}", provider_id, trimmed);
                 }
             }
             Err(_) => break,
@@ -536,6 +544,18 @@ async fn fail_all_pending(state: &Arc<Mutex<ProcessState>>, err: AnimeError) {
 async fn mark_failed(state: &Arc<Mutex<ProcessState>>) {
     let mut st = state.lock().await;
     st.status = ProcessStatus::Failed;
+}
+
+pub fn debug_logging_enabled() -> bool {
+    std::env::var("RUST_LOG")
+        .map(|value| {
+            let value = value.to_lowercase();
+            value.contains("debug") || value.contains("trace")
+        })
+        .unwrap_or(false)
+        || std::env::var("MUTSUKITUBE_DEBUG")
+            .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+            .unwrap_or(false)
 }
 
 async fn kill_child(state: &Arc<Mutex<ProcessState>>) {

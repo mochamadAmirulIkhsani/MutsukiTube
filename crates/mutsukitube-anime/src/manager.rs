@@ -9,7 +9,7 @@ use crate::identity::{
     find_matching_episode,
 };
 use crate::models::{Anime, Episode, PROTOCOL_VERSION, PluginInfo, StreamInfo};
-use crate::process::{ProcessTimeouts, ProviderProcess};
+use crate::process::{ProcessTimeouts, ProviderProcess, debug_logging_enabled};
 use crate::registry::ProviderRegistry;
 use serde_json::json;
 use std::collections::HashMap;
@@ -257,6 +257,12 @@ impl AnimeManager {
                 false,
             ));
         }
+        if debug_logging_enabled() {
+            eprintln!(
+                "[mutsukitube-anime] stream provider={} quality={}",
+                provider_id, quality
+            );
+        }
         let process = self.process_for(provider_id)?;
         let quality = if quality.trim().is_empty() {
             "auto"
@@ -325,6 +331,14 @@ impl AnimeManager {
             attempt_count += 1;
 
             let now = std::time::Instant::now();
+            if debug_logging_enabled() {
+                eprintln!(
+                    "[mutsukitube-anime] search_auto provider={} query_len={} eligible={}",
+                    provider_id,
+                    query.len(),
+                    self.health.is_available(&provider_id, now)
+                );
+            }
             if !self.health.is_available(&provider_id, now) {
                 attempts.push(ProviderAttempt {
                     provider_id: provider_id.clone(),
@@ -336,6 +350,13 @@ impl AnimeManager {
 
             match self.search(&provider_id, query).await {
                 Ok(results) => {
+                    if debug_logging_enabled() {
+                        eprintln!(
+                            "[mutsukitube-anime] search_auto provider={} results={}",
+                            provider_id,
+                            results.len()
+                        );
+                    }
                     if results.is_empty() {
                         self.health.record_empty(&provider_id);
                         attempts.push(ProviderAttempt {
@@ -367,6 +388,12 @@ impl AnimeManager {
                 Err(error) => {
                     let action = self.policy.decision_for_error(&error);
                     let reason = self.policy.reason_for_error(&error);
+                    if debug_logging_enabled() {
+                        eprintln!(
+                            "[mutsukitube-anime] provider={} error={} retryable={} fallback={:?}",
+                            provider_id, error.category, error.retryable, action
+                        );
+                    }
                     self.health.record_failure(
                         &provider_id,
                         &error,
@@ -425,6 +452,15 @@ impl AnimeManager {
             attempt_count += 1;
 
             let now = std::time::Instant::now();
+            if debug_logging_enabled() {
+                eprintln!(
+                    "[mutsukitube-anime] stream_with_fallback provider={} quality={} episode={} eligible={}",
+                    provider_id,
+                    quality,
+                    selected_episode.number,
+                    self.health.is_available(&provider_id, now)
+                );
+            }
             if !self.health.is_available(&provider_id, now) {
                 attempts.push(ProviderAttempt {
                     provider_id: provider_id.clone(),
@@ -461,6 +497,12 @@ impl AnimeManager {
                 let (matched_anime, confidence) =
                     find_matching_anime(selected_anime, &search_results);
                 if confidence != MatchConfidence::Exact && confidence != MatchConfidence::Alias {
+                    if debug_logging_enabled() {
+                        eprintln!(
+                            "[mutsukitube-anime] stream_with_fallback provider={} identity_match={:?}",
+                            provider_id, confidence
+                        );
+                    }
                     attempts.push(ProviderAttempt {
                         provider_id: provider_id.clone(),
                         reason: if confidence == MatchConfidence::Ambiguous {
@@ -508,6 +550,12 @@ impl AnimeManager {
                 match find_matching_episode(selected_episode, &episodes) {
                     Some(episode) => (matched_anime, episode),
                     None => {
+                        if debug_logging_enabled() {
+                            eprintln!(
+                                "[mutsukitube-anime] stream_with_fallback provider={} episode_mismatch selected_episode={}",
+                                provider_id, selected_episode.number
+                            );
+                        }
                         attempts.push(ProviderAttempt {
                             provider_id: provider_id.clone(),
                             reason: crate::fallback::FallbackReason::EpisodeMismatch,
@@ -539,6 +587,12 @@ impl AnimeManager {
                         },
                         std::time::Instant::now(),
                     );
+                    if debug_logging_enabled() {
+                        eprintln!(
+                            "[mutsukitube-anime] stream_with_fallback provider={} success height={:?} source={:?}",
+                            provider_id, stream.height, stream.source
+                        );
+                    }
                     attempts.push(ProviderAttempt {
                         provider_id: provider_id.clone(),
                         reason: crate::fallback::FallbackReason::Success,
@@ -555,6 +609,12 @@ impl AnimeManager {
                 Err(error) => {
                     let action = self.policy.decision_for_error(&error);
                     let reason = self.policy.reason_for_error(&error);
+                    if debug_logging_enabled() {
+                        eprintln!(
+                            "[mutsukitube-anime] provider={} error={} retryable={} fallback={:?}",
+                            provider_id, error.category, error.retryable, action
+                        );
+                    }
                     self.health.record_failure(
                         &provider_id,
                         &error,
@@ -575,6 +635,12 @@ impl AnimeManager {
             }
         }
 
+        if debug_logging_enabled() {
+            eprintln!(
+                "[mutsukitube-anime] stream_with_fallback exhausted attempts={}",
+                attempts.len()
+            );
+        }
         Err(AnimeError::new(
             CATEGORY_NO_PLAYABLE_MIRROR,
             "all eligible providers exhausted",

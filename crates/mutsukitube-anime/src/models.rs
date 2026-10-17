@@ -1,3 +1,4 @@
+use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -46,7 +47,11 @@ pub struct StreamInfo {
     pub url: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub referer: Option<String>,
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_null_map",
+        skip_serializing_if = "HashMap::is_empty"
+    )]
     pub headers: HashMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub height: Option<u32>,
@@ -61,5 +66,25 @@ pub struct StreamInfo {
 impl StreamInfo {
     pub fn headers_or_empty(&self) -> &HashMap<String, String> {
         &self.headers
+    }
+}
+
+fn deserialize_null_map<'de, D>(deserializer: D) -> Result<HashMap<String, String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(Option::<HashMap<String, String>>::deserialize(deserializer)?.unwrap_or_default())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stream_info_deserializes_null_headers() {
+        let raw = r#"{"url":"https://example.com/video.mp4","headers":null,"height":720,"source":"streams-720p"}"#;
+        let info: StreamInfo = serde_json::from_str(raw).unwrap();
+        assert!(info.headers.is_empty());
+        assert_eq!(info.height, Some(720));
     }
 }

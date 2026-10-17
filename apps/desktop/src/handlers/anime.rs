@@ -3,10 +3,7 @@ use std::sync::Arc;
 
 use slint::{ComponentHandle, ModelRc};
 
-use crate::{
-    AppWindow, app_context::AppContext, state::AppState,
-};
-
+use crate::{AppWindow, app_context::AppContext, state::AppState};
 
 #[cfg(target_os = "windows")]
 pub fn register(
@@ -59,8 +56,12 @@ fn register_search(ui: &AppWindow, context: &AppContext) {
         if let Some(ui) = weak.upgrade() {
             ui.set_anime_loading(true);
             ui.set_anime_status_text("Searching anime...".into());
-            ui.set_anime_results(ModelRc::from(Rc::new(slint::VecModel::<slint::SharedString>::default())));
-            ui.set_anime_episodes(ModelRc::from(Rc::new(slint::VecModel::<slint::SharedString>::default())));
+            ui.set_anime_results(ModelRc::from(Rc::new(
+                slint::VecModel::<slint::SharedString>::default(),
+            )));
+            ui.set_anime_episodes(ModelRc::from(Rc::new(
+                slint::VecModel::<slint::SharedString>::default(),
+            )));
         }
 
         let weak = weak.clone();
@@ -85,8 +86,11 @@ fn register_search(ui: &AppWindow, context: &AppContext) {
 
                 match result {
                     Ok(outcome) => {
-                        let titles: Vec<slint::SharedString> =
-                            outcome.results.iter().map(|a| a.title.clone().into()).collect();
+                        let titles: Vec<slint::SharedString> = outcome
+                            .results
+                            .iter()
+                            .map(|a| a.title.clone().into())
+                            .collect();
 
                         app_state.anime_results = outcome.results;
                         app_state.anime_episodes.clear();
@@ -96,12 +100,17 @@ fn register_search(ui: &AppWindow, context: &AppContext) {
                         drop(app_state);
 
                         ui.set_anime_results(ModelRc::from(Rc::new(slint::VecModel::from(titles))));
-                        ui.set_anime_episodes(ModelRc::from(Rc::new(slint::VecModel::<slint::SharedString>::default())));
+                        ui.set_anime_episodes(ModelRc::from(Rc::new(slint::VecModel::<
+                            slint::SharedString,
+                        >::default(
+                        ))));
                         ui.set_selected_anime_title("".into());
                         ui.set_selected_episode_title("".into());
 
                         if let Some(provider) = outcome.provider_id {
-                            ui.set_anime_status_text(format!("{} results", app_state_count(&state)).into());
+                            ui.set_anime_status_text(
+                                format!("{} results", app_state_count(&state)).into(),
+                            );
                             let _ = provider;
                         } else {
                             ui.set_anime_status_text("No anime found".into());
@@ -169,8 +178,12 @@ fn register_select(ui: &AppWindow, context: &AppContext) {
 
                         drop(app_state);
 
-                        ui.set_anime_episodes(ModelRc::from(Rc::new(slint::VecModel::from(titles))));
-                        ui.set_anime_qualities(ModelRc::from(Rc::new(slint::VecModel::from(vec!["Auto".into()]))));
+                        ui.set_anime_episodes(ModelRc::from(Rc::new(slint::VecModel::from(
+                            titles,
+                        ))));
+                        ui.set_anime_qualities(ModelRc::from(Rc::new(slint::VecModel::from(
+                            vec!["Auto".into()],
+                        ))));
                         ui.set_anime_status_text("Episodes loaded".into());
                     }
                     Err(error) => {
@@ -212,7 +225,10 @@ fn register_select_episode(ui: &AppWindow, context: &AppContext) {
         let handle = context.handle.clone();
 
         handle.spawn(async move {
-            let heights = manager.heights(&anime.provider_id, &episode.url).await.unwrap_or_default();
+            let heights = manager
+                .heights(&anime.provider_id, &episode.url)
+                .await
+                .unwrap_or_default();
 
             let _ = weak.upgrade_in_event_loop(move |ui| {
                 let Ok(mut app_state) = state.lock() else {
@@ -231,10 +247,14 @@ fn register_select_episode(ui: &AppWindow, context: &AppContext) {
 
                 ui.set_selected_episode_title(episode.title.clone().into());
 
-                let quality_items: Vec<slint::SharedString> =
-                    qualities.into_iter().map(slint::SharedString::from).collect();
+                let quality_items: Vec<slint::SharedString> = qualities
+                    .into_iter()
+                    .map(slint::SharedString::from)
+                    .collect();
 
-                ui.set_anime_qualities(ModelRc::from(Rc::new(slint::VecModel::from(quality_items))));
+                ui.set_anime_qualities(ModelRc::from(Rc::new(slint::VecModel::from(
+                    quality_items,
+                ))));
             });
         });
     });
@@ -287,7 +307,11 @@ fn register_play_windows(
             (
                 state.selected_anime.clone(),
                 state.selected_episode.clone(),
-                state.anime_qualities.first().cloned().unwrap_or_else(|| "Auto".to_string()),
+                state
+                    .anime_qualities
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| "Auto".to_string()),
             )
         };
 
@@ -324,31 +348,29 @@ fn register_play_windows(
                 )
                 .await;
 
-            let _ = weak.upgrade_in_event_loop(move |ui| {
-                match result {
-                    Ok(outcome) => {
-                        let stream = outcome.stream;
+            let _ = weak.upgrade_in_event_loop(move |ui| match result {
+                Ok(outcome) => {
+                    let stream = outcome.stream;
 
-                        let mut headers = Vec::new();
-                        if let Some(referer) = stream.referer {
-                            headers.push(("Referer".to_string(), referer));
-                        }
-                        for (key, value) in stream.headers {
-                            headers.push((key, value));
-                        }
-
-                        ui.set_selected_video_title(anime.title.clone().into());
-                        ui.set_selected_video_channel("Anime".into());
-                        ui.set_playback_position(0.0);
-                        ui.set_playback_duration(0.0);
-                        ui.set_player_paused(true);
-                        ui.set_playback_state("loading".into());
-
-                        ui.invoke_anime_play_ready(stream.url.into(), encode_headers(&headers).into());
+                    let mut headers = Vec::new();
+                    if let Some(referer) = stream.referer {
+                        headers.push(("Referer".to_string(), referer));
                     }
-                    Err(error) => {
-                        ui.set_anime_status_text(format!("Playback failed: {error}").into());
+                    for (key, value) in stream.headers {
+                        headers.push((key, value));
                     }
+
+                    ui.set_selected_video_title(anime.title.clone().into());
+                    ui.set_selected_video_channel("Anime".into());
+                    ui.set_playback_position(0.0);
+                    ui.set_playback_duration(0.0);
+                    ui.set_player_paused(true);
+                    ui.set_playback_state("loading".into());
+
+                    ui.invoke_anime_play_ready(stream.url.into(), encode_headers(&headers).into());
+                }
+                Err(error) => {
+                    ui.set_anime_status_text(format!("Playback failed: {error}").into());
                 }
             });
         });

@@ -71,7 +71,8 @@ impl FallbackPolicy {
             | CATEGORY_NO_PLAYABLE_MIRROR
             | CATEGORY_ANIME_NOT_FOUND
             | CATEGORY_EPISODE_NOT_FOUND
-            | CATEGORY_RATE_LIMITED => FallbackAction::Continue,
+            | CATEGORY_RATE_LIMITED
+            | CATEGORY_MALFORMED_RESPONSE => FallbackAction::Continue,
             CATEGORY_AUTH_REQUIRED => FallbackAction::Continue,
             CATEGORY_UNSUPPORTED => FallbackAction::Continue,
             _ => FallbackAction::Stop,

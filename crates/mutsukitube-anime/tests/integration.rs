@@ -215,6 +215,86 @@ async fn disabled_provider_rejected() {
     assert_eq!(err.category, mutsukitube_anime::CATEGORY_DISABLED_PROVIDER);
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn real_stream_smoke() {
+    let base = if let Ok(dir) = std::env::var("MUTSUKITUBE_ANIME_PLUGIN_DIR") {
+        std::path::PathBuf::from(dir)
+    } else {
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../mutsukitube-anime-plugins/dist/v0.1.0")
+    };
+    for provider in ["ylnime", "astronime", "moenime"] {
+        let binary_name = if cfg!(windows) {
+            format!("{}-windows-amd64.exe", provider)
+        } else {
+            format!("{}-linux-amd64", provider)
+        };
+        let binary = base.join(binary_name);
+        if !binary.is_file() {
+            eprintln!("skip {} missing", binary.display());
+            continue;
+        }
+        let config = mutsukitube_anime::ProviderConfig {
+            id: provider.into(),
+            display_name: provider.into(),
+            executable_path: binary,
+            executable_args: Vec::new(),
+            enabled: true,
+            priority: 1,
+            expected_protocol: mutsukitube_anime::PROTOCOL_VERSION,
+        };
+        let registry = mutsukitube_anime::ProviderRegistry::new(vec![config]);
+        let manager = mutsukitube_anime::AnimeManager::new(registry);
+        println!("PROVIDER={}", provider);
+        let search = manager.search(provider, "naruto").await;
+        println!("SEARCH={:?}", search.as_ref().map(|v| v.len()));
+        let anime = match search {
+            Ok(mut results) if !results.is_empty() => results.remove(0),
+            Ok(_) => {
+                println!("no search results");
+                manager.shutdown_all().await;
+                continue;
+            }
+            Err(e) => {
+                println!("search error: {}", e);
+                manager.shutdown_all().await;
+                continue;
+            }
+        };
+        println!("ANIME={} {}", anime.title, anime.url);
+        let episodes = match manager.episodes(provider, &anime.url).await {
+            Ok(v) => v,
+            Err(e) => {
+                println!("episodes error: {}", e);
+                manager.shutdown_all().await;
+                continue;
+            }
+        };
+        println!("EPISODES={}", episodes.len());
+        let Some(episode) = episodes.first().cloned() else {
+            manager.shutdown_all().await;
+            continue;
+        };
+        println!("EPISODE={} {}", episode.number, episode.url);
+        let heights = manager
+            .heights(provider, &episode.url)
+            .await
+            .unwrap_or_default();
+        println!("HEIGHTS={:?}", heights);
+        let stream = manager.stream(provider, &episode.url, "auto").await;
+        match stream {
+            Ok(s) => println!(
+                "STREAM_OK height={:?} source={:?} url_host={}",
+                s.height,
+                s.source,
+                s.url.split('/').nth(2).unwrap_or(&s.url)
+            ),
+            Err(e) => println!("STREAM_ERROR={}", e),
+        }
+        manager.shutdown_all().await;
+    }
+}
+
 fn fallback_registry(providers: Vec<(&str, &str)>) -> ProviderRegistry {
     let mut configs = Vec::new();
     for (id, mode) in providers {

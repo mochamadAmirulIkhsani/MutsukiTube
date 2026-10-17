@@ -45,7 +45,12 @@ impl EmbeddedMpvPlayer {
             .join(",");
 
         self.mpv
-            .command(&["loadfile", url, "replace", &format!("http-header-fields={header_fields}")])
+            .command(&[
+                "loadfile",
+                url,
+                "replace",
+                &format!("http-header-fields={header_fields}"),
+            ])
             .map_err(|error| error.to_string())
     }
 
