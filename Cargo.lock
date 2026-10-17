@@ -3210,6 +3210,7 @@ dependencies = [
 name = "mutsukitube-anime"
 version = "0.1.0"
 dependencies = [
+ "mutsukitube-plugin-updater",
  "serde",
  "serde_json",
  "tempfile",

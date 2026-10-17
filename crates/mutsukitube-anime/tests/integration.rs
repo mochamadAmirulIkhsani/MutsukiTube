@@ -622,6 +622,119 @@ async fn stream_fallback_cancelled() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn installed_version_directory_is_discovered_and_handshakes() {
+    let source_base = if let Ok(dir) = std::env::var("MUTSUKITUBE_ANIME_PLUGIN_DIR") {
+        PathBuf::from(dir)
+    } else {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../mutsukitube-anime-plugins/dist/v0.1.0")
+    };
+    let binary_name = if cfg!(windows) {
+        "ylnime-windows-amd64.exe"
+    } else {
+        "ylnime-linux-amd64"
+    };
+    let source_binary = source_base.join(binary_name);
+    if !source_binary.is_file() {
+        eprintln!(
+            "skipping installed-version discovery test: {} not found",
+            source_binary.display()
+        );
+        return;
+    }
+
+    // Simulate the updater's versioned install layout: <base>/<version>/<binary>.
+    let temp = tempfile::tempdir().unwrap();
+    let version_dir = temp.path().join("v0.1.0");
+    std::fs::create_dir_all(&version_dir).unwrap();
+    std::fs::copy(&source_binary, version_dir.join(binary_name)).unwrap();
+
+    let registry = ProviderRegistry::with_standard(Some(version_dir));
+    let discovered = registry.get("ylnime").unwrap();
+    assert!(
+        discovered.executable_path.is_file(),
+        "installed binary was not discovered: {}",
+        discovered.executable_path.display()
+    );
+
+    let manager = AnimeManager::new(registry);
+    let info = manager.info("ylnime").await.unwrap();
+    assert_eq!(info.id, "ylnime");
+    assert_eq!(info.protocol_version, 1);
+
+    manager.shutdown_all().await;
+}
+
+fn real_plugin_source_base() -> PathBuf {
+    if let Ok(dir) = std::env::var("MUTSUKITUBE_ANIME_PLUGIN_DIR") {
+        PathBuf::from(dir)
+    } else {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../mutsukitube-anime-plugins/dist/v0.1.0")
+    }
+}
+
+fn real_plugin_binary_name() -> &'static str {
+    if cfg!(windows) {
+        "ylnime-windows-amd64.exe"
+    } else {
+        "ylnime-linux-amd64"
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn updater_install_then_manager_handshake() {
+    use mutsukitube_plugin_updater as updater;
+
+    let source_binary = real_plugin_source_base().join(real_plugin_binary_name());
+    if !source_binary.is_file() {
+        eprintln!(
+            "skipping updater->manager chain test: {} not found",
+            source_binary.display()
+        );
+        return;
+    }
+
+    let bytes = std::fs::read(&source_binary).unwrap();
+    let artifact = updater::Artifact {
+        path: real_plugin_binary_name().to_string(),
+        provider: "ylnime".into(),
+        os: if cfg!(windows) { "windows" } else { "linux" }.into(),
+        arch: "amd64".into(),
+        sha256: updater::sha256_hex(&bytes),
+        size: bytes.len() as i64,
+        url: String::new(),
+    };
+
+    let temp = tempfile::tempdir().unwrap();
+    let installed = updater::install_artifact(temp.path(), "v0.1.0", &artifact, &bytes).unwrap();
+    assert!(installed.is_file());
+    updater::activate_version(temp.path(), "v0.1.0").unwrap();
+    assert_eq!(
+        updater::active_version(temp.path()).as_deref(),
+        Some("v0.1.0")
+    );
+
+    // Tampered bytes must be rejected without disturbing the active version.
+    let mut tampered = bytes.clone();
+    tampered[0] ^= 1;
+    assert!(updater::install_artifact(temp.path(), "v0.2.0", &artifact, &tampered).is_err());
+    assert_eq!(
+        updater::active_version(temp.path()).as_deref(),
+        Some("v0.1.0")
+    );
+
+    // AnimeManager must discover the installed versioned executable and the
+    // Rust-Go IPC info handshake must succeed.
+    let registry = ProviderRegistry::with_standard(Some(temp.path().join("v0.1.0")));
+    let manager = AnimeManager::new(registry);
+    let info = manager.info("ylnime").await.unwrap();
+    assert_eq!(info.id, "ylnime");
+    assert_eq!(info.protocol_version, 1);
+    manager.shutdown_all().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn real_go_provider_smoke() {
     let base = if let Ok(dir) = std::env::var("MUTSUKITUBE_ANIME_PLUGIN_DIR") {
         PathBuf::from(dir)

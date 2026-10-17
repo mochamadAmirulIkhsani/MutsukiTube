@@ -399,25 +399,13 @@ fn register_install(ui: &AppWindow, context: &AppContext) {
                 Ok(value) if !value.trim().is_empty() => value,
                 _ => {
                     let _ = weak.upgrade_in_event_loop(|ui| {
-                        ui.set_anime_status_text(
-                            "Plugin registry URL is not configured".into(),
-                        );
+                        ui.set_anime_status_text("Plugin registry URL is not configured".into());
                     });
                     return;
                 }
             };
 
-            let public_key = match std::env::var("MUTSUKITUBE_PLUGIN_PUBLIC_KEY") {
-                Ok(value) if !value.trim().is_empty() => value,
-                _ => {
-                    let _ = weak.upgrade_in_event_loop(|ui| {
-                        ui.set_anime_status_text(
-                            "Plugin public key is not configured".into(),
-                        );
-                    });
-                    return;
-                }
-            };
+            let public_key = updater::trusted_public_key().unwrap_or_default();
 
             let manifest_url = format!("{}/manifest.json", registry_url.trim_end_matches('/'));
             let signature_url = format!("{}/manifest.sig", registry_url.trim_end_matches('/'));
@@ -433,10 +421,20 @@ fn register_install(ui: &AppWindow, context: &AppContext) {
                 }
             };
 
-            let manifest_bytes = match updater::download_artifact(&client, &manifest_url, updater::MAX_MANIFEST_BYTES).await {
+            let _ = weak.upgrade_in_event_loop(|ui| {
+                ui.set_anime_status_text("Checking registry...".into());
+            });
+
+            let manifest_bytes = match updater::download_artifact(
+                &client,
+                &manifest_url,
+                updater::MAX_MANIFEST_BYTES,
+            )
+            .await
+            {
                 Ok(bytes) => bytes,
                 Err(error) => {
-                    let message = format!("Manifest download failed: {error}");
+                    let message = updater_error_message("Manifest download failed", &error);
                     let _ = weak.upgrade_in_event_loop(move |ui| {
                         ui.set_anime_status_text(message.into());
                     });
@@ -444,33 +442,54 @@ fn register_install(ui: &AppWindow, context: &AppContext) {
                 }
             };
 
-            let signature_bytes = match updater::download_artifact(&client, &signature_url, 4096).await {
-                Ok(bytes) => bytes,
-                Err(error) => {
-                    let message = format!("Signature download failed: {error}");
-                    let _ = weak.upgrade_in_event_loop(move |ui| {
-                        ui.set_anime_status_text(message.into());
-                    });
-                    return;
-                }
-            };
+            let signature_bytes =
+                match updater::download_artifact(&client, &signature_url, 4096).await {
+                    Ok(bytes) => bytes,
+                    Err(error) => {
+                        let message = format!("Signature download failed: {error}");
+                        let _ = weak.upgrade_in_event_loop(move |ui| {
+                            ui.set_anime_status_text(message.into());
+                        });
+                        return;
+                    }
+                };
 
             let signature_hex = String::from_utf8_lossy(&signature_bytes).to_string();
-            let manifest = match updater::verify_manifest(&manifest_bytes, &signature_hex, &public_key) {
-                Ok(manifest) => manifest,
-                Err(error) => {
-                    let message = format!("Manifest verification failed: {error}");
-                    let _ = weak.upgrade_in_event_loop(move |ui| {
-                        ui.set_anime_status_text(message.into());
-                    });
-                    return;
-                }
-            };
+            let manifest =
+                match updater::verify_manifest(&manifest_bytes, &signature_hex, &public_key) {
+                    Ok(manifest) => manifest,
+                    Err(error) => {
+                        let message = format!("Manifest verification failed: {error}");
+                        let _ = weak.upgrade_in_event_loop(move |ui| {
+                            ui.set_anime_status_text(message.into());
+                        });
+                        return;
+                    }
+                };
 
             let base_dir = updater::plugin_base_dir();
+
+            if updater::is_version_failed(&base_dir, &manifest.version) {
+                let version = manifest.version.clone();
+                let _ = weak.upgrade_in_event_loop(move |ui| {
+                    ui.set_anime_status_text(
+                        format!(
+                            "Release {version} previously failed; not reinstalling automatically"
+                        )
+                        .into(),
+                    );
+                });
+                return;
+            }
+
             let artifacts = updater::select_artifacts(&manifest, "windows", "amd64");
 
             for artifact in artifacts {
+                let provider = artifact.provider.clone();
+                let _ = weak.upgrade_in_event_loop(move |ui| {
+                    ui.set_anime_status_text(format!("Downloading {}...", provider).into());
+                });
+
                 let url = match updater::artifact_download_url(&manifest, artifact) {
                     Ok(url) => url,
                     Err(error) => {
@@ -482,16 +501,23 @@ fn register_install(ui: &AppWindow, context: &AppContext) {
                     }
                 };
 
-                let bytes = match updater::download_artifact(&client, &url, updater::MAX_ARTIFACT_BYTES).await {
-                    Ok(bytes) => bytes,
-                    Err(error) => {
-                        let message = format!("Download failed: {error}");
-                        let _ = weak.upgrade_in_event_loop(move |ui| {
-                            ui.set_anime_status_text(message.into());
-                        });
-                        return;
-                    }
-                };
+                let bytes =
+                    match updater::download_artifact(&client, &url, updater::MAX_ARTIFACT_BYTES)
+                        .await
+                    {
+                        Ok(bytes) => bytes,
+                        Err(error) => {
+                            let message = updater_error_message("Download failed", &error);
+                            let _ = weak.upgrade_in_event_loop(move |ui| {
+                                ui.set_anime_status_text(message.into());
+                            });
+                            return;
+                        }
+                    };
+
+                let _ = weak.upgrade_in_event_loop(|ui| {
+                    ui.set_anime_status_text("Verifying plugin...".into());
+                });
 
                 if let Err(error) = updater::verify_artifact_bytes(artifact, &bytes) {
                     let message = format!("Artifact verification failed: {error}");
@@ -501,7 +527,13 @@ fn register_install(ui: &AppWindow, context: &AppContext) {
                     return;
                 }
 
-                if let Err(error) = updater::install_artifact(&base_dir, &manifest.version, artifact, &bytes) {
+                let _ = weak.upgrade_in_event_loop(|ui| {
+                    ui.set_anime_status_text("Installing plugin...".into());
+                });
+
+                if let Err(error) =
+                    updater::install_artifact(&base_dir, &manifest.version, artifact, &bytes)
+                {
                     let message = format!("Install failed: {error}");
                     let _ = weak.upgrade_in_event_loop(move |ui| {
                         ui.set_anime_status_text(message.into());
@@ -528,6 +560,13 @@ fn register_install(ui: &AppWindow, context: &AppContext) {
             }
         });
     });
+}
+
+fn updater_error_message(prefix: &str, error: &updater::UpdaterError) -> String {
+    match error {
+        updater::UpdaterError::Network(_) => "Registry offline or unreachable".to_string(),
+        _ => format!("{prefix}: {error}"),
+    }
 }
 
 fn encode_headers(headers: &[(String, String)]) -> String {

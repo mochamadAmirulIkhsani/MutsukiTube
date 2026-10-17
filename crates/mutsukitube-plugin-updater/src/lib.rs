@@ -6,6 +6,25 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const MAX_MANIFEST_BYTES: usize = 1 << 20;
+
+// Development fallback key only. Production builds should override this
+// through MUTSUKITUBE_PLUGIN_PUBLIC_KEY or a build-time trusted key.
+pub const DEVELOPMENT_PLUGIN_PUBLIC_KEY: &str =
+    "e87eb6823b81521e6986c504641f1b60ef5f73a5d92abbfad453f6e1cb5315a0";
+
+pub fn trusted_public_key() -> Option<String> {
+    std::env::var("MUTSUKITUBE_PLUGIN_PUBLIC_KEY")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| option_env!("MUTSUKITUBE_PLUGIN_PUBLIC_KEY").map(str::to_string))
+        .or_else(|| {
+            if cfg!(debug_assertions) {
+                Some(DEVELOPMENT_PLUGIN_PUBLIC_KEY.to_string())
+            } else {
+                None
+            }
+        })
+}
 pub const MAX_ARTIFACT_BYTES: usize = 64 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -103,11 +122,13 @@ pub fn verify_manifest(
     public_key_hex: &str,
 ) -> Result<Manifest, UpdaterError> {
     if manifest_bytes.is_empty() || manifest_bytes.len() > MAX_MANIFEST_BYTES {
-        return Err(UpdaterError::InvalidManifest("unexpected manifest size".into()));
+        return Err(UpdaterError::InvalidManifest(
+            "unexpected manifest size".into(),
+        ));
     }
 
-    let public_key_bytes = hex::decode(public_key_hex)
-        .map_err(|_| UpdaterError::InvalidPublicKey)?;
+    let public_key_bytes =
+        hex::decode(public_key_hex).map_err(|_| UpdaterError::InvalidPublicKey)?;
     if public_key_bytes.len() != 32 {
         return Err(UpdaterError::InvalidPublicKey);
     }
@@ -119,8 +140,8 @@ pub fn verify_manifest(
     )
     .map_err(|_| UpdaterError::InvalidPublicKey)?;
 
-    let signature_bytes = hex::decode(signature_hex.trim())
-        .map_err(|_| UpdaterError::InvalidSignature)?;
+    let signature_bytes =
+        hex::decode(signature_hex.trim()).map_err(|_| UpdaterError::InvalidSignature)?;
     if signature_bytes.len() != 64 {
         return Err(UpdaterError::InvalidSignature);
     }
@@ -156,7 +177,9 @@ pub fn verify_manifest(
 
 fn validate_artifact(artifact: &Artifact) -> Result<(), UpdaterError> {
     if artifact.provider.trim().is_empty() {
-        return Err(UpdaterError::InvalidManifest("artifact missing provider".into()));
+        return Err(UpdaterError::InvalidManifest(
+            "artifact missing provider".into(),
+        ));
     }
     if artifact.os != "windows" && artifact.os != "linux" {
         return Err(UpdaterError::InvalidManifest(format!(
@@ -174,7 +197,9 @@ fn validate_artifact(artifact: &Artifact) -> Result<(), UpdaterError> {
         return Err(UpdaterError::InvalidManifest("invalid sha256".into()));
     }
     if artifact.size < 0 || artifact.size as usize > MAX_ARTIFACT_BYTES {
-        return Err(UpdaterError::InvalidManifest("invalid artifact size".into()));
+        return Err(UpdaterError::InvalidManifest(
+            "invalid artifact size".into(),
+        ));
     }
     validate_relative_path(&artifact.path)?;
     if !artifact.url.is_empty() {
@@ -213,11 +238,7 @@ fn validate_url(url: &str) -> Result<(), UpdaterError> {
     Err(UpdaterError::UnsafeUrl(url.to_string()))
 }
 
-pub fn select_artifacts<'a>(
-    manifest: &'a Manifest,
-    os: &str,
-    arch: &str,
-) -> Vec<&'a Artifact> {
+pub fn select_artifacts<'a>(manifest: &'a Manifest, os: &str, arch: &str) -> Vec<&'a Artifact> {
     manifest
         .artifacts
         .iter()
@@ -314,8 +335,8 @@ pub fn load_state(base_dir: &Path) -> PluginState {
 
 pub fn save_state(base_dir: &Path, state: &PluginState) -> Result<(), UpdaterError> {
     fs::create_dir_all(base_dir).map_err(|error| UpdaterError::Io(error.to_string()))?;
-    let data = serde_json::to_vec_pretty(state)
-        .map_err(|error| UpdaterError::Io(error.to_string()))?;
+    let data =
+        serde_json::to_vec_pretty(state).map_err(|error| UpdaterError::Io(error.to_string()))?;
     fs::write(state_path(base_dir), data).map_err(|error| UpdaterError::Io(error.to_string()))
 }
 
@@ -341,8 +362,7 @@ pub fn install_artifact(
     if destination.exists() {
         let _ = fs::remove_file(&destination);
     }
-    fs::rename(&temp_path, &destination)
-        .map_err(|error| UpdaterError::Io(error.to_string()))?;
+    fs::rename(&temp_path, &destination).map_err(|error| UpdaterError::Io(error.to_string()))?;
 
     Ok(destination)
 }
@@ -382,7 +402,10 @@ pub async fn download_artifact(
     Ok(bytes.to_vec())
 }
 
-pub fn artifact_download_url(manifest: &Manifest, artifact: &Artifact) -> Result<String, UpdaterError> {
+pub fn artifact_download_url(
+    manifest: &Manifest,
+    artifact: &Artifact,
+) -> Result<String, UpdaterError> {
     if !artifact.url.is_empty() {
         validate_url(&artifact.url)?;
         return Ok(artifact.url.clone());
@@ -393,6 +416,42 @@ pub fn artifact_download_url(manifest: &Manifest, artifact: &Artifact) -> Result
         return Ok(format!("{}/{}", base, artifact.path));
     }
     Err(UpdaterError::UnsafeUrl("missing artifact URL".into()))
+}
+
+pub fn mark_version_failed(base_dir: &Path, version: &str) -> Result<(), UpdaterError> {
+    let mut state = load_state(base_dir);
+    if !state.failed_versions.iter().any(|item| item == version) {
+        state.failed_versions.push(version.to_string());
+    }
+    if state.active_version.as_deref() == Some(version) {
+        state.active_version = state.previous_version.clone();
+        state.previous_version = None;
+    }
+    state.last_check_unix = Some(now_unix());
+    save_state(base_dir, &state)
+}
+
+pub fn is_version_failed(base_dir: &Path, version: &str) -> bool {
+    load_state(base_dir)
+        .failed_versions
+        .iter()
+        .any(|item| item == version)
+}
+
+pub fn rollback_to_previous(base_dir: &Path) -> Result<Option<String>, UpdaterError> {
+    let mut state = load_state(base_dir);
+    if let Some(previous) = state.previous_version.clone() {
+        state.active_version = Some(previous.clone());
+        state.previous_version = None;
+        state.last_check_unix = Some(now_unix());
+        save_state(base_dir, &state)?;
+        return Ok(Some(previous));
+    }
+    Ok(state.active_version)
+}
+
+pub fn active_version(base_dir: &Path) -> Option<String> {
+    load_state(base_dir).active_version
 }
 
 pub fn activate_version(base_dir: &Path, version: &str) -> Result<(), UpdaterError> {
@@ -512,6 +571,189 @@ mod tests {
         let state = load_state(temp.path());
         assert_eq!(state.active_version.as_deref(), Some("v0.1.0"));
     }
+
+    #[test]
+    fn activation_preserves_previous_known_good() {
+        let temp = tempfile::tempdir().unwrap();
+        activate_version(temp.path(), "v0.1.0").unwrap();
+        activate_version(temp.path(), "v0.2.0").unwrap();
+
+        let state = load_state(temp.path());
+        assert_eq!(state.active_version.as_deref(), Some("v0.2.0"));
+        assert_eq!(state.previous_version.as_deref(), Some("v0.1.0"));
+        assert!(state.installed_versions.contains(&"v0.1.0".to_string()));
+        assert!(state.installed_versions.contains(&"v0.2.0".to_string()));
+    }
+
+    #[test]
+    fn rollback_restores_previous_version() {
+        let temp = tempfile::tempdir().unwrap();
+        activate_version(temp.path(), "v0.1.0").unwrap();
+        activate_version(temp.path(), "v0.2.0").unwrap();
+
+        let restored = rollback_to_previous(temp.path()).unwrap();
+        assert_eq!(restored.as_deref(), Some("v0.1.0"));
+
+        let state = load_state(temp.path());
+        assert_eq!(state.active_version.as_deref(), Some("v0.1.0"));
+        assert_eq!(state.previous_version, None);
+    }
+
+    #[test]
+    fn mark_failed_rolls_back_and_blocks_repeat() {
+        let temp = tempfile::tempdir().unwrap();
+        activate_version(temp.path(), "v0.1.0").unwrap();
+        activate_version(temp.path(), "v0.2.0").unwrap();
+
+        mark_version_failed(temp.path(), "v0.2.0").unwrap();
+
+        let state = load_state(temp.path());
+        assert_eq!(state.active_version.as_deref(), Some("v0.1.0"));
+        assert!(state.failed_versions.contains(&"v0.2.0".to_string()));
+        assert!(is_version_failed(temp.path(), "v0.2.0"));
+        assert!(!is_version_failed(temp.path(), "v0.1.0"));
+    }
+
+    #[test]
+    fn interrupted_install_keeps_old_version_active() {
+        let temp = tempfile::tempdir().unwrap();
+        activate_version(temp.path(), "v0.1.0").unwrap();
+
+        // Simulate a partially written payload without activation.
+        let version_dir = temp.path().join("v0.2.0");
+        std::fs::create_dir_all(&version_dir).unwrap();
+        std::fs::write(
+            version_dir.join(".ylnime-windows-amd64.exe.tmp"),
+            b"partial",
+        )
+        .unwrap();
+
+        let state = load_state(temp.path());
+        assert_eq!(state.active_version.as_deref(), Some("v0.1.0"));
+        assert!(!state.installed_versions.contains(&"v0.2.0".to_string()));
+    }
+
+    #[test]
+    fn repeated_known_bad_release_is_detectable() {
+        let temp = tempfile::tempdir().unwrap();
+        activate_version(temp.path(), "v0.1.0").unwrap();
+        activate_version(temp.path(), "v0.2.0").unwrap();
+        mark_version_failed(temp.path(), "v0.2.0").unwrap();
+
+        // A second activation of the same bad release must be preventable by
+        // the caller checking is_version_failed before activating again.
+        assert!(is_version_failed(temp.path(), "v0.2.0"));
+    }
+
+    #[tokio::test]
+    async fn local_http_install_flow() {
+        use ed25519_dalek::{Signer, SigningKey};
+        use std::io::{Read, Write};
+        use std::net::TcpListener;
+        use std::thread;
+
+        let signing_key = SigningKey::from_bytes(&[7u8; 32]);
+        let public_key = hex::encode(signing_key.verifying_key().to_bytes());
+
+        let temp = tempfile::tempdir().unwrap();
+        let release_dir = temp.path().join("v0.1.0");
+        std::fs::create_dir_all(&release_dir).unwrap();
+        let binary_path = release_dir.join("ylnime-windows-amd64.exe");
+        std::fs::write(&binary_path, b"hello").unwrap();
+
+        let mut manifest = Manifest {
+            schema: "mutsukitube-manifest-1".into(),
+            version: "v0.1.0".into(),
+            generated_at: "2026-10-18T00:00:00Z".into(),
+            url_base: String::new(),
+            artifacts: vec![Artifact {
+                path: "ylnime-windows-amd64.exe".into(),
+                provider: "ylnime".into(),
+                os: "windows".into(),
+                arch: "amd64".into(),
+                sha256: sha256_hex(b"hello"),
+                size: 5,
+                url: String::new(),
+            }],
+        };
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let base_url = format!("http://127.0.0.1:{}/v0.1.0", port);
+        manifest.url_base = base_url.clone();
+
+        let manifest_bytes = serde_json::to_vec_pretty(&manifest).unwrap();
+        let signature = signing_key.sign(&manifest_bytes);
+        let signature_hex = hex::encode(signature.to_bytes());
+
+        let manifest_for_server = manifest_bytes.clone();
+        let signature_for_server = signature_hex.clone();
+        let release_dir_for_server = release_dir.clone();
+
+        thread::spawn(move || {
+            for _ in 0..4 {
+                if let Ok((mut stream, _)) = listener.accept() {
+                    let mut buffer = [0u8; 1024];
+                    let _ = stream.read(&mut buffer);
+                    let request = String::from_utf8_lossy(&buffer);
+                    let path = request
+                        .lines()
+                        .next()
+                        .and_then(|line| line.split_whitespace().nth(1))
+                        .unwrap_or("/");
+                    let response_body = if path.ends_with("manifest.json") {
+                        manifest_for_server.clone()
+                    } else if path.ends_with("manifest.sig") {
+                        signature_for_server.clone().into_bytes()
+                    } else {
+                        let file_name = std::path::Path::new(path).file_name().unwrap_or_default();
+                        std::fs::read(release_dir_for_server.join(file_name)).unwrap_or_default()
+                    };
+
+                    let header = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        response_body.len()
+                    );
+                    let _ = stream.write_all(header.as_bytes());
+                    let _ = stream.write_all(&response_body);
+                }
+            }
+        });
+
+        let client = reqwest::Client::new();
+        let downloaded_manifest_bytes = download_artifact(
+            &client,
+            &format!("{}/manifest.json", base_url),
+            MAX_MANIFEST_BYTES,
+        )
+        .await
+        .unwrap();
+        let downloaded_signature =
+            download_artifact(&client, &format!("{}/manifest.sig", base_url), 4096)
+                .await
+                .unwrap();
+        let downloaded_signature_hex = String::from_utf8(downloaded_signature).unwrap();
+
+        let verified_manifest = verify_manifest(
+            &downloaded_manifest_bytes,
+            &downloaded_signature_hex,
+            &public_key,
+        )
+        .unwrap();
+        let artifact = &verified_manifest.artifacts[0];
+        let artifact_url = artifact_download_url(&verified_manifest, artifact).unwrap();
+        let bytes = download_artifact(&client, &artifact_url, MAX_ARTIFACT_BYTES)
+            .await
+            .unwrap();
+        verify_artifact_bytes(artifact, &bytes).unwrap();
+
+        let install_dir = temp.path().join("installed");
+        let installed_path =
+            install_artifact(&install_dir, &verified_manifest.version, artifact, &bytes).unwrap();
+        assert!(installed_path.exists());
+        activate_version(&install_dir, &verified_manifest.version).unwrap();
+
+        let state = load_state(&install_dir);
+        assert_eq!(state.active_version.as_deref(), Some("v0.1.0"));
+    }
 }
-
-

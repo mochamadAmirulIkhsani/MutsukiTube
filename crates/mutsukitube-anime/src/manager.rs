@@ -34,7 +34,8 @@ impl AnimeManager {
     pub fn with_timeouts(registry: ProviderRegistry, timeouts: ProcessTimeouts) -> Self {
         Self {
             registry: StdMutex::new(registry),
-            plugin_dir: crate::registry::plugin_dir_from_env().unwrap_or_else(|| std::path::PathBuf::from("plugins")),
+            plugin_dir: crate::registry::plugin_dir_from_env()
+                .unwrap_or_else(|| std::path::PathBuf::from("plugins")),
             processes: StdMutex::new(HashMap::new()),
             timeouts,
             policy: FallbackPolicy::default(),
@@ -49,7 +50,8 @@ impl AnimeManager {
     pub fn with_policy(registry: ProviderRegistry, policy: FallbackPolicy) -> Self {
         Self {
             registry: StdMutex::new(registry),
-            plugin_dir: crate::registry::plugin_dir_from_env().unwrap_or_else(|| std::path::PathBuf::from("plugins")),
+            plugin_dir: crate::registry::plugin_dir_from_env()
+                .unwrap_or_else(|| std::path::PathBuf::from("plugins")),
             processes: StdMutex::new(HashMap::new()),
             timeouts: ProcessTimeouts::default(),
             policy,
@@ -68,7 +70,8 @@ impl AnimeManager {
     ) -> Self {
         Self {
             registry: StdMutex::new(registry),
-            plugin_dir: crate::registry::plugin_dir_from_env().unwrap_or_else(|| std::path::PathBuf::from("plugins")),
+            plugin_dir: crate::registry::plugin_dir_from_env()
+                .unwrap_or_else(|| std::path::PathBuf::from("plugins")),
             processes: StdMutex::new(HashMap::new()),
             timeouts,
             policy,

@@ -73,8 +73,34 @@ fn main() -> Result<(), slint::PlatformError> {
         let installed_dir = plugin_base_dir();
 
         if installed_dir.exists() {
+            if let Some(version) = mutsukitube_plugin_updater::active_version(&installed_dir) {
+                let version_dir = installed_dir.join(&version);
+                let registry = ProviderRegistry::with_standard(Some(version_dir.clone()));
+                let manager = AnimeManager::new(registry);
+                let mut failed = false;
+
+                if let Some(provider) = manager.provider_ids().first().cloned() {
+                    if runtime.block_on(manager.info(&provider)).is_err() {
+                        failed = true;
+                    }
+                } else {
+                    failed = true;
+                }
+
+                if failed {
+                    let _ =
+                        mutsukitube_plugin_updater::mark_version_failed(&installed_dir, &version);
+                    let _ = mutsukitube_plugin_updater::rollback_to_previous(&installed_dir);
+                }
+            }
+
+            let active_dir = mutsukitube_plugin_updater::active_version(&installed_dir)
+                .map(|version| installed_dir.join(version))
+                .filter(|path| path.exists())
+                .unwrap_or(installed_dir);
+
             unsafe {
-                std::env::set_var("MUTSUKITUBE_ANIME_PLUGIN_DIR", &installed_dir);
+                std::env::set_var("MUTSUKITUBE_ANIME_PLUGIN_DIR", &active_dir);
             }
         }
     }
