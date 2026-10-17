@@ -93,5 +93,5 @@
 - Tests executed: cargo fmt/check/test workspace; go test/vet
 - Actual test results: PASS
 - Known problems: Phase 2 changes uncommitted at documentation time
-- Git commit hash: to be recorded after local commit
+- Git commit hash: 9466cc7d9344790b1f69e95348c8088e030e2f78
 - Next checkpoint: none (Phase 2 complete)
