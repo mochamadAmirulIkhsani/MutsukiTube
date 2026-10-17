@@ -3128,6 +3128,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mutsukitube-anime"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+]
+
+[[package]]
 name = "mutsukitube-core"
 version = "0.1.0"
 dependencies = [
