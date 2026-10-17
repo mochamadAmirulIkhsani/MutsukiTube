@@ -21,7 +21,7 @@ export component WatchPage inherits Rectangle {
     in property <bool> player-paused: true;
     in property <bool> player-muted: false;
 
-    in property <float> playback-position: 0;
+    in-out property <float> playback-position: 0;
     in property <float> playback-duration: 0;
     in property <float> playback-volume: 70;
 
@@ -55,6 +55,8 @@ export component WatchPage inherits Rectangle {
     callback replay();
     callback toggle-fullscreen();
 
+    callback open-in-browser(string);
+
     background: #0f0f0f;
 
     VerticalBox {
@@ -87,22 +89,15 @@ export component WatchPage inherits Rectangle {
         }
 
         video-surface := Rectangle {
-            min-height: root.fullscreen-mode
-                ? 0px
-                : 360px;
-
-            max-height: root.fullscreen-mode
-                ? 10000px
-                : 360px;
+            min-height: root.fullscreen-mode ? 0px : 360px;
+            max-height: root.fullscreen-mode ? 10000px : 360px;
 
             horizontal-stretch: 1;
             vertical-stretch: root.fullscreen-mode ? 1 : 0;
 
             background: #050505;
 
-            border-radius: root.fullscreen-mode
-                ? 0px
-                : 8px;
+            border-radius: root.fullscreen-mode ? 0px : 8px;
 
             if root.playback-state == "loading": Spinner {
                 width: 48px;
@@ -111,6 +106,58 @@ export component WatchPage inherits Rectangle {
 
                 x: (parent.width - self.width) / 2;
                 y: (parent.height - self.height) / 2;
+            }
+
+            if root.playback-state == "error": Rectangle {
+                width: parent.width;
+                height: parent.height;
+
+                background: #050505;
+
+                VerticalBox {
+                    alignment: center;
+                    spacing: 16px;
+
+                    Text {
+                        text: "Failed to load video";
+
+                        color: white;
+                        font-size: 22px;
+                        font-weight: 700;
+
+                        horizontal-alignment: center;
+                    }
+
+                    Text {
+                        text: "YouTube may be restricting playback.";
+
+                        color: #aaaaaa;
+                        font-size: 14px;
+
+                        horizontal-alignment: center;
+                    }
+
+                    HorizontalBox {
+                        alignment: center;
+                        spacing: 12px;
+
+                        Button {
+                            text: "Retry";
+
+                            clicked => {
+                                root.play(root.video-id);
+                            }
+                        }
+
+                        Button {
+                            text: "Open in Browser";
+
+                            clicked => {
+                                root.open-in-browser(root.video-id);
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -124,10 +171,11 @@ export component WatchPage inherits Rectangle {
                     ? root.playback-duration
                     : 1;
 
-                value: root.playback-position;
+                value <=> root.playback-position;
 
                 enabled: root.player-ready
-                    && root.playback-duration > 0;
+                    && root.playback-duration > 0
+                    && root.playback-state != "loading";
 
                 released(value) => {
                     root.seek-playback(value);

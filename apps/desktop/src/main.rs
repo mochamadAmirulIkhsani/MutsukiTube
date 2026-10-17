@@ -106,6 +106,35 @@ fn main() -> Result<(), slint::PlatformError> {
     handlers::library::register(&ui, &context);
     handlers::search::register(&ui, &context);
 
+    #[cfg(target_os = "windows")]
+    {
+        ui.on_open_video_browser(move |video_id| {
+            let id = video_id.to_string();
+
+            let valid = id.len() == 11
+                && id
+                    .bytes()
+                    .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_');
+
+            if !valid {
+                eprintln!("[MutsukiTube] Invalid browser video ID");
+                return;
+            }
+
+            let url = format!("https://www.youtube.com/watch?v={id}");
+
+            match std::process::Command::new("explorer.exe").arg(&url).spawn() {
+                Ok(_) => {
+                    println!("[MutsukiTube] Opening video in browser");
+                }
+
+                Err(error) => {
+                    eprintln!("[MutsukiTube] Browser launch error: {error}");
+                }
+            }
+        });
+    }
+
     {
         let weak = ui.as_weak();
 
@@ -426,8 +455,13 @@ fn main() -> Result<(), slint::PlatformError> {
 
                 let is_loading = video_loading.get();
 
-                let should_show_surface =
-                    is_watch && !is_minimized && !is_loading && geometry.is_some();
+                let controller_state = session.controller.playback_state().as_str();
+
+                let should_show_surface = is_watch
+                    && !is_minimized
+                    && !is_loading
+                    && controller_state != "error"
+                    && geometry.is_some();
 
                 if let Some(surface) = session.surface.as_ref() {
                     if should_show_surface {

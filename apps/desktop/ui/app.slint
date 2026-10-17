@@ -15,7 +15,6 @@ export component AppWindow inherits Window {
     min-width: 800px;
     min-height: 600px;
 
-
     in-out property <string> current-page: "search";
     in-out property <[VideoItem]> videos;
 
@@ -24,20 +23,16 @@ export component AppWindow inherits Window {
     in-out property <bool> has-more: false;
     in-out property <string> status-text: "";
 
-
     in-out property <string> selected-video-id: "";
     in-out property <string> selected-video-title: "";
     in-out property <string> selected-video-channel: "";
-
 
     in-out property <[VideoItem]> history-videos;
     in-out property <bool> history-loading: false;
     in-out property <string> history-status: "";
 
-
     in-out property <string> provider-mode: "auto";
     in-out property <string> settings-status: "";
-
 
     in-out property <[VideoItem]> library-videos;
     in-out property <[string]> playlist-names;
@@ -48,7 +43,6 @@ export component AppWindow inherits Window {
     in-out property <bool> library-loading: false;
     in-out property <string> library-status: "";
     in-out property <string> watch-library-status: "";
-
 
     in-out property <bool> player-ready: false;
     in-out property <bool> player-paused: true;
@@ -61,7 +55,6 @@ export component AppWindow inherits Window {
     in-out property <bool> fullscreen-mode: false;
 
     in-out property <bool> player-muted: false;
-
 
     callback save-provider(string);
     callback search(string);
@@ -90,12 +83,13 @@ export component AppWindow inherits Window {
 
     callback toggle-mute();
 
+    callback open-video-browser(string);
+
     changed current-page => {
         if (root.current-page == "watch") {
             shortcut-scope.focus();
         }
     }
-
 
     out property <float> video-x:
         watch-page.video-surface-x / 1px;
@@ -108,7 +102,6 @@ export component AppWindow inherits Window {
 
     out property <float> video-height:
         watch-page.video-surface-height / 1px;
-
 
     if root.current-page == "search": SearchPage {
         videos: root.videos;
@@ -147,9 +140,7 @@ export component AppWindow inherits Window {
         }
     }
 
-
-
-shortcut-scope := FocusScope {
+    shortcut-scope := FocusScope {
         x: 0px;
         y: 0px;
         width: parent.width;
@@ -170,29 +161,25 @@ shortcut-scope := FocusScope {
                 || event.modifiers.meta) {
                 return reject;
             }
-
-        if (event.text == " ") {
+            if (event.text == " ") {
                 if (root.player-ready) {
                     root.toggle-playback();
                 }
                 return accept;
             }
-
-        if (event.text == "f" || event.text == "F") {
+            if (event.text == "f" || event.text == "F") {
                 if (root.player-ready) {
                     root.toggle-fullscreen();
                 }
                 return accept;
             }
-
-        if (event.text == Key.Escape) {
+            if (event.text == Key.Escape) {
                 if (root.fullscreen-mode) {
                     root.toggle-fullscreen();
                     return accept;
                 }
             }
-
-        if (event.text == "m" || event.text == "M") {
+            if (event.text == "m" || event.text == "M") {
                 if (root.player-ready) {
                     root.toggle-mute();
                 }
@@ -225,14 +212,14 @@ shortcut-scope := FocusScope {
 
             player-muted: root.player-muted;
 
-        back => {
+            back => {
                 if (root.fullscreen-mode) {
                     root.toggle-fullscreen();
                 }
                 root.current-page = "search";
             }
 
-        play(id) => {
+            play(id) => {
                 root.play-video(id);
             }
 
@@ -260,16 +247,19 @@ shortcut-scope := FocusScope {
                 root.toggle-fullscreen();
             }
 
-        toggle-favorite => {
+            toggle-favorite => {
                 root.toggle-favorite();
             }
 
             add-to-playlist(name) => {
                 root.add-to-playlist(name);
             }
+
+            open-in-browser(id) => {
+                root.open-video-browser(id);
+            }
         }
     }
-
 
     if root.current-page == "history": HistoryPage {
         videos: root.history-videos;
@@ -289,7 +279,6 @@ shortcut-scope := FocusScope {
         }
     }
 
-
     if root.current-page == "settings": SettingsPage {
         provider-mode: root.provider-mode;
         status-text: root.settings-status;
@@ -302,7 +291,6 @@ shortcut-scope := FocusScope {
             root.save-provider(mode);
         }
     }
-
 
     if root.current-page == "library": LibraryPage {
         videos: root.library-videos;

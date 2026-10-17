@@ -1,0 +1,221 @@
+[   0.002][v][cplayer] mpv v0.41.0-244-gaf9c81fa1 Copyright Â© 2000-2026 mpv/MPlayer/mplayer2 projects
+[   0.002][v][cplayer]  built on Mar  2 2026 00:06:26
+[   0.002][v][cplayer] libplacebo version: v7.360.0 (v7.360.0-6-g905358e-dirty)
+[   0.002][v][cplayer] FFmpeg version: N-123099-g862338fe3
+[   0.002][v][cplayer] FFmpeg library versions:
+[   0.002][v][cplayer]    libavcodec      62.24.100
+[   0.002][v][cplayer]    libavdevice     62.2.100
+[   0.002][v][cplayer]    libavfilter     11.12.100
+[   0.002][v][cplayer]    libavformat     62.10.101
+[   0.002][v][cplayer]    libavutil       60.25.100
+[   0.002][v][cplayer]    libswresample   6.2.100
+[   0.002][v][cplayer]    libswscale      9.4.100
+[   0.002][v][cplayer] Configuration: -Ddebug=true -Db_ndebug=true -Doptimization=3 -Db_lto=true -Db_lto_mode=thin -Dlibmpv=true -Dpdf-build=enabled -Dlua=enabled -Djavascript=enabled -Dsdl2-gamepad=enabled -Dlibarchive=enabled -Dlibbluray=enabled -Ddvdnav=enabled -Duchardet=enabled -Drubberband=enabled -Dlcms2=enabled -Dopenal=enabled -Dspirv-cross=enabled -Dvulkan=enabled -Dvapoursynth=enabled -Dsubrandr=enabled -Dgl=enabled -Degl-angle=enabled -Dc_args=-Wno-error=int-conversion -Dprefix=/__w/mpv-winbuild-cmake/mpv-winbuild-cmake/build_x86_64_v3/x86_64_v3-w64-mingw32 -Dlibdir=/__w/mpv-winbuild-cmake/mpv-winbuild-cmake/build_x86_64_v3/x86_64_v3-w64-mingw32/lib -Ddefault_library=shared -Dprefer_static=True --cross-file=/__w/mpv-winbuild-cmake/mpv-winbuild-cmake/build_x86_64_v3/meson_cross.txt
+[   0.002][v][cplayer] List of enabled features: amf build-date cplugins cuda-hwaccel cuda-interop d3d-hwaccel d3d11 d3d9-hwaccel debug direct3d dos-paths dvdnav dxgi-debug-d3d11 egl-angle egl-angle-win32 ffmpeg ffnvcodec gl gl-dxinterop gl-dxinterop-d3d9 gl-win32 glob glob-win32 gpl iconv javascript jpeg lcms2 libarchive libass libavdevice libbluray libplacebo luajit openal rubberband rubberband-3 sdl2-gamepad shaderc spirv-cross subrandr uchardet vaapi vaapi-win32 vapoursynth vector vulkan wasapi win32 win32-desktop win32-executable win32-smtc win32-threads zimg zimg-st428 zlib
+[   0.002][v][cplayer] Built with NDEBUG.
+[   0.002][v][cplayer] Command line options: '--no-config' '--log-file=D:\Projects\mutsukitube\mpv-debug.log' '--msg-level=ytdl_hook=debug' 'https://www.youtube.com/watch?v=SYXTo-iOhWE'
+[   0.002][v][cplayer] mpv v0.41.0-244-gaf9c81fa1 Copyright Â© 2000-2026 mpv/MPlayer/mplayer2 projects
+[   0.002][v][cplayer]  built on Mar  2 2026 00:06:26
+[   0.002][v][cplayer] libplacebo version: v7.360.0 (v7.360.0-6-g905358e-dirty)
+[   0.002][v][cplayer] FFmpeg version: N-123099-g862338fe3
+[   0.002][v][cplayer] FFmpeg library versions:
+[   0.002][v][cplayer]    libavcodec      62.24.100
+[   0.002][v][cplayer]    libavdevice     62.2.100
+[   0.002][v][cplayer]    libavfilter     11.12.100
+[   0.002][v][cplayer]    libavformat     62.10.101
+[   0.002][v][cplayer]    libavutil       60.25.100
+[   0.002][v][cplayer]    libswresample   6.2.100
+[   0.002][v][cplayer]    libswscale      9.4.100
+[   0.002][v][cplayer] Configuration: -Ddebug=true -Db_ndebug=true -Doptimization=3 -Db_lto=true -Db_lto_mode=thin -Dlibmpv=true -Dpdf-build=enabled -Dlua=enabled -Djavascript=enabled -Dsdl2-gamepad=enabled -Dlibarchive=enabled -Dlibbluray=enabled -Ddvdnav=enabled -Duchardet=enabled -Drubberband=enabled -Dlcms2=enabled -Dopenal=enabled -Dspirv-cross=enabled -Dvulkan=enabled -Dvapoursynth=enabled -Dsubrandr=enabled -Dgl=enabled -Degl-angle=enabled -Dc_args=-Wno-error=int-conversion -Dprefix=/__w/mpv-winbuild-cmake/mpv-winbuild-cmake/build_x86_64_v3/x86_64_v3-w64-mingw32 -Dlibdir=/__w/mpv-winbuild-cmake/mpv-winbuild-cmake/build_x86_64_v3/x86_64_v3-w64-mingw32/lib -Ddefault_library=shared -Dprefer_static=True --cross-file=/__w/mpv-winbuild-cmake/mpv-winbuild-cmake/build_x86_64_v3/meson_cross.txt
+[   0.002][v][cplayer] List of enabled features: amf build-date cplugins cuda-hwaccel cuda-interop d3d-hwaccel d3d11 d3d9-hwaccel debug direct3d dos-paths dvdnav dxgi-debug-d3d11 egl-angle egl-angle-win32 ffmpeg ffnvcodec gl gl-dxinterop gl-dxinterop-d3d9 gl-win32 glob glob-win32 gpl iconv javascript jpeg lcms2 libarchive libass libavdevice libbluray libplacebo luajit openal rubberband rubberband-3 sdl2-gamepad shaderc spirv-cross subrandr uchardet vaapi vaapi-win32 vapoursynth vector vulkan wasapi win32 win32-desktop win32-executable win32-smtc win32-threads zimg zimg-st428 zlib
+[   0.002][v][cplayer] Built with NDEBUG.
+[   0.002][d][global] home path: '' -> '-'
+[   0.003][d][global] user path: '~~home/' -> ''
+[   0.003][d][global] user path: '~~old_home/' -> ''
+[   0.003][v][cplayer] Setting option 'config' = 'no' (flags = 8)
+[   0.003][v][cplayer] Setting option 'log-file' = 'D:\Projects\mutsukitube\mpv-debug.log' (flags = 8)
+[   0.003][v][cplayer] Setting option 'msg-level' = 'ytdl_hook=debug' (flags = 8)
+[   0.003][d][osc] Loading lua script @osc.lua...
+[   0.003][d][ytdl_hook] Loading lua script @ytdl_hook.lua...
+[   0.003][d][stats] Loading lua script @stats.lua...
+[   0.003][d][console] Loading lua script @console.lua...
+[   0.003][d][auto_profiles] Loading lua script @auto_profiles.lua...
+[   0.003][d][select] Loading lua script @select.lua...
+[   0.003][d][positioning] Loading lua script @positioning.lua...
+[   0.003][d][commands] Loading lua script @commands.lua...
+[   0.003][v][clipboard] Initialized win32 clipboard backend.
+[   0.004][v][cplayer] Waiting for scripts...
+[   0.004][d][console] loading mp.defaults
+[   0.004][d][stats] loading mp.defaults
+[   0.004][d][osc] loading mp.defaults
+[   0.004][d][ytdl_hook] loading mp.defaults
+[   0.004][d][positioning] loading mp.defaults
+[   0.004][d][select] loading mp.defaults
+[   0.004][d][commands] loading mp.defaults
+[   0.004][d][auto_profiles] loading mp.defaults
+[   0.004][d][stats] loading @stats.lua
+[   0.004][d][console] loading @console.lua
+[   0.004][d][osc] loading @osc.lua
+[   0.004][d][positioning] loading @positioning.lua
+[   0.004][d][ytdl_hook] loading @ytdl_hook.lua
+[   0.005][d][select] loading @select.lua
+[   0.005][d][positioning] reading options for positioning
+[   0.005][d][commands] loading @commands.lua
+[   0.005][d][positioning] script-opts/positioning.conf not found.
+[   0.005][d][positioning] lua-settings/positioning.conf not found.
+[   0.005][d][auto_profiles] loading @auto_profiles.lua
+[   0.005][d][cplayer] Run command: define-section, flags=64, args=[name="input_positioning", contents="", flags="default"]
+[   0.005][d][cplayer] Run command: enable-section, flags=64, args=[name="input_positioning", flags="allow-hide-cursor+allow-vo-dragging"]
+[   0.005][d][cplayer] Run command: define-section, flags=64, args=[name="input_forced_positioning", contents="", flags="force"]
+[   0.005][d][cplayer] Run command: enable-section, flags=64, args=[name="input_forced_positioning", flags="allow-hide-cursor+allow-vo-dragging"]
+[   0.005][d][ytdl_hook] reading options for ytdl_hook
+[   0.006][d][ytdl_hook] script-opts/ytdl_hook.conf not found.
+[   0.006][d][ytdl_hook] lua-settings/ytdl_hook.conf not found.
+[   0.006][d][console] reading options for console
+[   0.006][d][console] script-opts/console.conf not found.
+[   0.006][d][console] lua-settings/console.conf not found.
+[   0.006][d][commands] reading options for commands
+[   0.006][d][commands] script-opts/commands.conf not found.
+[   0.006][d][stats] reading options for stats
+[   0.006][d][commands] lua-settings/commands.conf not found.
+[   0.006][d][stats] script-opts/stats.conf not found.
+[   0.006][d][stats] lua-settings/stats.conf not found.
+[   0.006][d][cplayer] Run command: define-section, flags=64, args=[name="input_commands", contents="", flags="default"]
+[   0.006][d][cplayer] Run command: enable-section, flags=64, args=[name="input_commands", flags="allow-hide-cursor+allow-vo-dragging"]
+[   0.006][d][cplayer] Run command: define-section, flags=64, args=[name="input_forced_commands", contents="", flags="force"]
+[   0.006][d][select] reading options for select
+[   0.006][d][cplayer] Run command: enable-section, flags=64, args=[name="input_forced_commands", flags="allow-hide-cursor+allow-vo-dragging"]
+[   0.006][d][auto_profiles] Destroying client handle...
+[   0.006][d][select] script-opts/select.conf not found.
+[   0.006][d][select] lua-settings/select.conf not found.
+[   0.006][d][cplayer] Run command: define-section, flags=64, args=[name="input_select", contents="", flags="default"]
+[   0.006][d][cplayer] Run command: enable-section, flags=64, args=[name="input_select", flags="allow-hide-cursor+allow-vo-dragging"]
+[   0.006][d][cplayer] Run command: define-section, flags=64, args=[name="input_console", contents="", flags="default"]
+[   0.006][d][cplayer] Run command: define-section, flags=64, args=[name="input_forced_select", contents="", flags="force"]
+[   0.006][d][cplayer] Run command: enable-section, flags=64, args=[name="input_console", flags="allow-hide-cursor+allow-vo-dragging"]
+[   0.006][d][cplayer] Run command: enable-section, flags=64, args=[name="input_forced_select", flags="allow-hide-cursor+allow-vo-dragging"]
+[   0.006][d][cplayer] Run command: define-section, flags=64, args=[name="input_forced_console", contents="", flags="force"]
+[   0.006][d][cplayer] Run command: enable-section, flags=64, args=[name="input_forced_console", flags="allow-hide-cursor+allow-vo-dragging"]
+[   0.006][d][cplayer] Run command: define-section, flags=64, args=[name="input_stats", contents="", flags="default"]
+[   0.006][d][cplayer] Run command: enable-section, flags=64, args=[name="input_stats", flags="allow-hide-cursor+allow-vo-dragging"]
+[   0.006][d][cplayer] Run command: define-section, flags=64, args=[name="input_forced_stats", contents="", flags="force"]
+[   0.006][d][cplayer] Run command: enable-section, flags=64, args=[name="input_forced_stats", flags="allow-hide-cursor+allow-vo-dragging"]
+[   0.007][d][cplayer] Run command: define-section, flags=64, args=[name="showhide", contents="mouse_move script-binding osc/__keybinding1\nmouse_leave script-binding osc/__keybinding2\n", flags="force"]
+[   0.007][d][cplayer] Run command: define-section, flags=64, args=[name="showhide_wc", contents="mouse_move script-binding osc/__keybinding3\nmouse_leave script-binding osc/__keybinding4\n", flags="force"]
+[   0.007][d][cplayer] Run command: enable-section, flags=64, args=[name="showhide", flags="allow-hide-cursor+allow-vo-dragging"]
+[   0.007][d][cplayer] Run command: enable-section, flags=64, args=[name="showhide_wc", flags="allow-hide-cursor+allow-vo-dragging"]
+[   0.007][d][cplayer] Run command: define-section, flags=64, args=[name="input", contents="mbtn_left script-binding osc/__keybinding5\nmbtn_mid script-binding osc/__keybinding6\nmbtn_right script-binding osc/__keybinding7\nshift+mbtn_left script-binding osc/__keybinding8\nwheel_up script-binding osc/__keybinding9\nwheel_down script-binding osc/__keybinding10\nmbtn_left_dbl ignore\nshift+mbtn_left_dbl ignore\nmbtn_right_dbl ignore\n", flags="force"]
+[   0.007][d][cplayer] Run command: enable-section, flags=64, args=[name="input", flags=""]
+[   0.007][d][cplayer] Run command: define-section, flags=64, args=[name="window-controls", contents="mbtn_left script-binding osc/__keybinding11\n", flags="force"]
+[   0.007][d][cplayer] Run command: enable-section, flags=64, args=[name="window-controls", flags=""]
+[   0.007][d][osc] reading options for osc
+[   0.007][d][osc] script-opts/osc.conf not found.
+[   0.007][d][osc] lua-settings/osc.conf not found.
+[   0.008][v][cplayer] Set property: user-data/osc/visibility="auto" -> 1
+[   0.008][d][cplayer] Run command: disable-section, flags=64, args=[name="input"]
+[   0.008][d][cplayer] Run command: disable-section, flags=64, args=[name="window-controls"]
+[   0.008][v][cplayer] Set property: user-data/osc/margins={"t":0,"b":0,"r":0,"l":0} -> 1
+[   0.008][v][cplayer] Done loading scripts.
+[   0.008][d][global] state path: 'watch_later' -> '-'
+[   0.008][v][cplayer] Running hook: auto_profiles/on_before_start_file
+[   0.008][v][cplayer] Failed sending hook command auto_profiles/on_before_start_file. Removing hook.
+[   0.008][d][global] state path: 'watch_later' -> '-'
+[   0.008][v][cplayer] Running hook: auto_profiles/on_load
+[   0.008][v][cplayer] Failed sending hook command auto_profiles/on_load. Removing hook.
+[   0.008][v][cplayer] Running hook: ytdl_hook/on_load
+[   0.008][v][ytdl_hook] URL matches included substring ^%w+%.youtube%.com/. Trying ytdl first.
+[   0.008][v][ytdl_hook] No youtube-dl found with path yt-dlp.exe in config directories
+[   0.008][v][cplayer] Set property: user-data/osc/margins={"t":0,"b":0,"r":0,"l":0} -> 1
+[   0.008][d][osc] osc_init
+[   0.008][d][cplayer] Run command: subprocess, flags=64, args=[args="yt-dlp,--no-warnings,-J,--flat-playlist,--sub-format,ass/srt/best,--sub-langs,all,--write-srt,--no-playlist,--,https://www.youtube.com/watch?v=SYXTo-iOhWE", playback_only="yes", capture_size="67108864", capture_stdout="yes", capture_stderr="yes", detach="no", env="", stdin_data="", passthrough_stdin="no"]
+[   0.009][v][cplayer] Set property: user-data/osc/margins={"t":0,"b":0,"r":0,"l":0} -> 1
+[   0.009][d][osd/libass] ASS library version: 0x1704000 (runtime 0x1704000)
+[   0.009][v][osd/libass] libass API version: 0x1704000
+[   0.009][v][osd/libass] libass source: meson, commit: 0.17.4-21-gfadc390583f24eb5cf98f16925fd3adee50bca88
+[   0.009][v][osd/libass] Shaper: FriBidi 1.0.16 (SIMPLE) HarfBuzz-ng 12.3.2 (COMPLEX)
+[   0.009][v][osd/libass] Setting up fonts...
+[   0.010][v][osd/libass] Using font provider directwrite (with GDI)
+[   0.010][v][osd/libass] Done.
+[   0.010][v][ytdl_hook] Starting subprocess: [yt-dlp, --no-warnings, -J, --flat-playlist, --sub-format, ass/srt/best, --sub-langs, all, --write-srt, --no-playlist, --, https://www.youtube.com/watch?v=SYXTo-iOhWE]
+[   0.010][d][cplayer] Run command: define-section, flags=64, args=[name="input_osc", contents="", flags="default"]
+[   0.010][d][cplayer] Run command: enable-section, flags=64, args=[name="input_osc", flags="allow-hide-cursor+allow-vo-dragging"]
+[   0.010][d][cplayer] Run command: define-section, flags=64, args=[name="input_forced_osc", contents="", flags="force"]
+[   0.010][d][cplayer] Run command: enable-section, flags=64, args=[name="input_forced_osc", flags="allow-hide-cursor+allow-vo-dragging"]
+[   2.002][v][ytdl_hook] Found youtube-dl with path yt-dlp in PATH
+[   2.002][v][cplayer] Set property: user-data/mpv/ytdl/path="yt-dlp" -> 1
+[   2.002][v][cplayer] Set property: user-data/mpv/ytdl/json-subprocess-result={"status":1,"stdout":"null\n","stderr":"ERROR: [youtube] SYXTo-iOhWE: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies. Also see  https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies  for tips on effectively exporting YouTube cookies\n","killed_by_us":false,"error_string":""} -> 1
+[   2.002][v][ytdl_hook] status: 1
+[   2.002][v][ytdl_hook] reason: 
+[   2.002][v][ytdl_hook] stdout: null
+[   2.002][v][ytdl_hook] 
+[   2.002][v][ytdl_hook] stderr: ERROR: [youtube] SYXTo-iOhWE: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies. Also see  https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies  for tips on effectively exporting YouTube cookies
+[   2.002][v][ytdl_hook] 
+[   2.002][e][ytdl_hook] ERROR: [youtube] SYXTo-iOhWE: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies. Also see  https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies  for tips on effectively exporting YouTube cookies
+[   2.002][e][ytdl_hook] youtube-dl failed: unexpected error occurred
+[   2.003][v][cplayer] Running hook: ytdl_hook/on_load
+[   2.003][v][ytdl_hook] playlist hook
+[   2.003][v][stream_callback] Opening https://www.youtube.com/watch?v=SYXTo-iOhWE
+[   2.003][v][ffmpeg] Opening https://www.youtube.com/watch?v=SYXTo-iOhWE
+[   2.008][d][ffmpeg] tcp: Starting connection attempt to 2001:4860:482b:400:: port 443
+[   2.039][d][ffmpeg] tcp: Successfully connected to 2001:4860:482b:400:: port 443
+[   2.230][d][ffmpeg] resize stream to 131072 bytes, drop 0 bytes
+[   2.230][v][ffmpeg] Mime-type: 'text/html'
+[   2.230][d][ffmpeg] Stream opened successfully.
+[   2.230][v][demux] Trying demuxers for level=normal.
+[   2.230][d][demux] Trying demuxer: directory (force-level: normal)
+[   2.236][d][demux] Trying demuxer: disc (force-level: normal)
+[   2.236][d][demux] Trying demuxer: edl (force-level: normal)
+[   2.236][d][demux] Trying demuxer: cue (force-level: normal)
+[   2.236][d][demux] Trying demuxer: rawaudio (force-level: normal)
+[   2.236][d][demux] Trying demuxer: rawvideo (force-level: normal)
+[   2.236][d][demux] Trying demuxer: mkv (force-level: normal)
+[   2.236][d][demux] Trying demuxer: libarchive (force-level: normal)
+[   2.236][d][demux] Trying demuxer: subrandr (force-level: normal)
+[   2.236][d][demux] Trying demuxer: lavf (force-level: normal)
+[   2.329][d][ffmpeg] resize stream to 262144 bytes, drop 0 bytes
+[   2.365][d][ffmpeg] resize stream to 524288 bytes, drop 0 bytes
+[   2.408][d][ffmpeg] resize stream to 1048576 bytes, drop 0 bytes
+[   2.613][d][ffmpeg] resize stream to 2097152 bytes, drop 0 bytes
+[   2.636][d][ffmpeg] resize stream to 4194304 bytes, drop 0 bytes
+[   2.661][v][lavf] No format found, try lowering probescore or forcing the format.
+[   2.661][d][demux] Trying demuxer: mf (force-level: normal)
+[   2.661][d][demux] Trying demuxer: playlist (force-level: normal)
+[   2.662][d][demux] Trying demuxer: null (force-level: normal)
+[   2.662][d][demux] Trying demuxer: mpv (force-level: normal)
+[   2.662][v][demux] Trying demuxers for level=unsafe.
+[   2.662][d][demux] Trying demuxer: directory (force-level: unsafe)
+[   2.662][d][demux] Trying demuxer: disc (force-level: unsafe)
+[   2.662][d][demux] Trying demuxer: edl (force-level: unsafe)
+[   2.662][d][demux] Trying demuxer: cue (force-level: unsafe)
+[   2.662][d][demux] Trying demuxer: rawaudio (force-level: unsafe)
+[   2.662][d][demux] Trying demuxer: rawvideo (force-level: unsafe)
+[   2.662][d][demux] Trying demuxer: mkv (force-level: unsafe)
+[   2.662][d][demux] Trying demuxer: libarchive (force-level: unsafe)
+[   2.663][d][demux] Trying demuxer: subrandr (force-level: unsafe)
+[   2.663][d][demux] Trying demuxer: lavf (force-level: unsafe)
+[   2.705][d][ffmpeg] resize stream to 2097152 bytes, drop 0 bytes
+[   2.728][d][ffmpeg] resize stream to 4194304 bytes, drop 0 bytes
+[   2.752][v][lavf] No format found, try lowering probescore or forcing the format.
+[   2.752][d][demux] Trying demuxer: mf (force-level: unsafe)
+[   2.752][d][demux] Trying demuxer: playlist (force-level: unsafe)
+[   2.752][d][demux] Trying demuxer: null (force-level: unsafe)
+[   2.752][d][demux] Trying demuxer: mpv (force-level: unsafe)
+[   2.752][d][ffmpeg] AVIOContext: Statistics: 1233673 bytes read, 0 seeks
+[   2.752][v][cplayer] Opening failed or was aborted: https://www.youtube.com/watch?v=SYXTo-iOhWE
+[   2.753][v][cplayer] Running hook: ytdl_hook/on_load_fail
+[   2.753][v][ytdl_hook] URL matches included substring ^%w+%.youtube%.com/. Trying ytdl first.
+[   2.753][v][cplayer] finished playback, unrecognized file format (reason 4)
+[   2.753][e][cplayer] Failed to recognize file format.
+[   2.753][v][cplayer] Running hook: ytdl_hook/on_after_end_file
+[   2.753][d][cplayer] Run command: del, flags=64, args=[name="user-data/mpv/ytdl/json-subprocess-result"]
+[   2.753][i][cplayer] Exiting... (Errors when loading file)
+[   2.755][d][cplayer] Run command: del, flags=64, args=[name="user-data/osc"]
+[   2.755][d][SystemMediaTransportControls] Destroying client handle...
+[   2.755][d][osc] Destroying client handle...
+[   2.755][d][ytdl_hook] Destroying client handle...
+[   2.755][d][stats] Destroying client handle...
+[   2.755][d][cplayer] Run command: del, flags=64, args=[name="user-data/mpv/console"]
+[   2.755][d][select] Destroying client handle...
+[   2.755][d][positioning] Destroying client handle...
+[   2.755][d][console] Destroying client handle...
+[   2.755][d][commands] Destroying client handle...
