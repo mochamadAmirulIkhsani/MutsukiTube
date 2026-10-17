@@ -17,7 +17,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 
 pub struct AnimeManager {
-    registry: ProviderRegistry,
+    registry: StdMutex<ProviderRegistry>,
+    plugin_dir: std::path::PathBuf,
     processes: StdMutex<HashMap<String, std::sync::Arc<ProviderProcess>>>,
     timeouts: ProcessTimeouts,
     policy: FallbackPolicy,
@@ -32,7 +33,8 @@ impl AnimeManager {
 
     pub fn with_timeouts(registry: ProviderRegistry, timeouts: ProcessTimeouts) -> Self {
         Self {
-            registry,
+            registry: StdMutex::new(registry),
+            plugin_dir: crate::registry::plugin_dir_from_env().unwrap_or_else(|| std::path::PathBuf::from("plugins")),
             processes: StdMutex::new(HashMap::new()),
             timeouts,
             policy: FallbackPolicy::default(),
@@ -46,7 +48,8 @@ impl AnimeManager {
 
     pub fn with_policy(registry: ProviderRegistry, policy: FallbackPolicy) -> Self {
         Self {
-            registry,
+            registry: StdMutex::new(registry),
+            plugin_dir: crate::registry::plugin_dir_from_env().unwrap_or_else(|| std::path::PathBuf::from("plugins")),
             processes: StdMutex::new(HashMap::new()),
             timeouts: ProcessTimeouts::default(),
             policy,
@@ -64,7 +67,8 @@ impl AnimeManager {
         policy: FallbackPolicy,
     ) -> Self {
         Self {
-            registry,
+            registry: StdMutex::new(registry),
+            plugin_dir: crate::registry::plugin_dir_from_env().unwrap_or_else(|| std::path::PathBuf::from("plugins")),
             processes: StdMutex::new(HashMap::new()),
             timeouts,
             policy,
@@ -76,19 +80,28 @@ impl AnimeManager {
         }
     }
 
-    pub fn registry(&self) -> &ProviderRegistry {
-        &self.registry
+    pub fn registry(&self) -> ProviderRegistry {
+        self.registry.lock().unwrap().clone()
     }
 
     pub fn provider_ids(&self) -> Vec<String> {
-        self.registry.ids_by_priority()
+        self.registry.lock().unwrap().ids_by_priority()
+    }
+
+    pub fn reload_registry(&self, plugin_dir: Option<std::path::PathBuf>) {
+        let dir = plugin_dir.unwrap_or_else(|| self.plugin_dir.clone());
+        let registry = ProviderRegistry::with_standard(Some(dir.clone()));
+        *self.registry.lock().unwrap() = registry;
+        *self.processes.lock().unwrap() = HashMap::new();
+        // Update plugin_dir? keep original
     }
 
     fn process_for(
         &self,
         provider_id: &str,
     ) -> Result<std::sync::Arc<ProviderProcess>, AnimeError> {
-        let config = self.registry.get(provider_id).ok_or_else(|| {
+        let registry = self.registry.lock().unwrap();
+        let config = registry.get(provider_id).ok_or_else(|| {
             AnimeError::new(
                 CATEGORY_PROVIDER_NOT_FOUND,
                 format!("unknown provider {provider_id}"),
@@ -317,7 +330,7 @@ impl AnimeManager {
 
         let mut attempts = Vec::new();
         let mut cancelled = false;
-        let providers = self.registry.ids_by_priority();
+        let providers = self.registry.lock().unwrap().ids_by_priority();
         let mut attempt_count = 0usize;
 
         for provider_id in providers {
@@ -431,7 +444,7 @@ impl AnimeManager {
     ) -> Result<StreamFallbackOutcome, AnimeError> {
         let mut attempts = Vec::new();
         let mut providers = vec![selected_anime.provider_id.clone()];
-        for id in self.registry.ids_by_priority() {
+        for id in self.registry.lock().unwrap().ids_by_priority() {
             if id != selected_anime.provider_id {
                 providers.push(id);
             }
