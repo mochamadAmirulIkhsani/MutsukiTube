@@ -11,6 +11,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use mutsukitube_anime::{AnimeManager, ProviderRegistry};
 use mutsukitube_storage::{get_playlist_names, get_provider_mode};
 use slint::{ComponentHandle, ModelRc, VecModel};
 
@@ -67,9 +68,14 @@ fn main() -> Result<(), slint::PlatformError> {
         ..AppState::default()
     }));
 
+    let anime_registry = ProviderRegistry::from_env();
+
+    let anime_manager = Arc::new(AnimeManager::new(anime_registry));
+
     let context = AppContext {
         state: state.clone(),
         handle: tokio_handle.clone(),
+        anime_manager: anime_manager.clone(),
     };
 
     ui.set_provider_mode(saved_provider.into());
@@ -105,6 +111,12 @@ fn main() -> Result<(), slint::PlatformError> {
     handlers::settings::register(&ui, &context);
     handlers::library::register(&ui, &context);
     handlers::search::register(&ui, &context);
+
+    #[cfg(target_os = "windows")]
+    handlers::anime::register(&ui, &context, native_session.clone());
+
+    #[cfg(not(target_os = "windows"))]
+    handlers::anime::register(&ui, &context);
 
     #[cfg(target_os = "windows")]
     {
@@ -408,7 +420,32 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                 }
 
-                if let Some(video_id) = session.pending_video_id.take() {
+                if let Some(source) = session.pending_anime_source.take() {
+                    let headers = std::mem::take(&mut session.pending_anime_headers);
+
+                    video_loading.set(true);
+
+                    ui.set_playback_state("loading".into());
+                    ui.set_playback_position(0.0);
+                    ui.set_playback_duration(0.0);
+                    ui.set_player_paused(true);
+
+                    match session.controller.load_media(&source, &headers) {
+                        Ok(()) => {
+                            if let Err(error) = session.controller.play() {
+                                eprintln!("[MutsukiTube] Play error: {error}");
+                            }
+
+                            println!("[MutsukiTube] Embedded anime source requested");
+                        }
+                        Err(error) => {
+                            eprintln!("[MutsukiTube] Embedded anime load error: {error}");
+
+                            video_loading.set(false);
+                            ui.set_playback_state("error".into());
+                        }
+                    }
+                } else if let Some(video_id) = session.pending_video_id.take() {
                     video_loading.set(true);
 
                     ui.set_playback_state("loading".into());

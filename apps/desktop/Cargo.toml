@@ -11,6 +11,7 @@ mutsukitube-youtube = { path = "../../crates/mutsukitube-youtube" }
 mutsukitube-player = { path = "../../crates/mutsukitube-player" }
 mutsukitube-storage = { path = "../../crates/mutsukitube-storage" }
 mutsukitube-embedded-player = { path = "../../crates/mutsukitube-embedded-player" }
+mutsukitube-anime = { path = "../../crates/mutsukitube-anime" }
 
 slint = { version = "1.18.1", features = [
     "image-default-formats",

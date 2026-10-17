@@ -27,6 +27,7 @@ export component SearchPage inherits Rectangle {
     callback show-history();
     callback show-settings();
     callback show-library();
+    callback show-anime();
 
     background: #0f0f0f;
 
@@ -69,6 +70,14 @@ export component SearchPage inherits Rectangle {
 
                 clicked => {
                     root.show-library();
+                }
+            }
+
+            Button {
+                text: "Anime";
+
+                clicked => {
+                    root.show-anime();
                 }
             }
         }

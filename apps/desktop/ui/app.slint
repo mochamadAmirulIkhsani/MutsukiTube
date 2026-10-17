@@ -1,6 +1,7 @@
 
 import { SearchPage } from "pages/search-page.slint";
 import { WatchPage } from "pages/watch-page.slint";
+import { AnimePage } from "pages/anime-page.slint";
 import { VideoItem } from "components/video-card.slint";
 import { HistoryPage } from "pages/history-page.slint";
 import { SettingsPage } from "pages/settings-page.slint";
@@ -34,6 +35,15 @@ export component AppWindow inherits Window {
     in-out property <string> provider-mode: "auto";
     in-out property <string> settings-status: "";
 
+    in-out property <[string]> anime-results;
+    in-out property <[string]> anime-episodes;
+    in-out property <[string]> anime-qualities: ["Auto"];
+    in-out property <string> selected-anime-title: "";
+    in-out property <string> selected-anime-quality: "Auto";
+    in-out property <string> selected-episode-title: "";
+    in-out property <string> anime-status-text: "";
+    in-out property <bool> anime-loading: false;
+
     in-out property <[VideoItem]> library-videos;
     in-out property <[string]> playlist-names;
 
@@ -64,6 +74,13 @@ export component AppWindow inherits Window {
 
     callback show-history();
     callback refresh-history();
+    callback show-anime();
+    callback anime-search(string);
+    callback anime-select(int);
+    callback anime-select-episode(int);
+    callback anime-play();
+    callback anime-play-ready(string, string);
+    callback anime-quality-changed(string);
 
     callback show-library();
     callback refresh-library();
@@ -137,6 +154,48 @@ export component AppWindow inherits Window {
             root.selected-playlist = "";
             root.current-page = "library";
             root.show-library();
+        }
+
+        show-anime => {
+            root.current-page = "anime";
+            root.show-anime();
+        }
+    }
+
+    if root.current-page == "anime": AnimePage {
+        anime-results: root.anime-results;
+        anime-episodes: root.anime-episodes;
+        anime-qualities: root.anime-qualities;
+        status-text: root.anime-status-text;
+        loading: root.anime-loading;
+
+        selected-anime-title: root.selected-anime-title;
+        selected-episode-title: root.selected-episode-title;
+        selected-quality: root.selected-anime-quality;
+
+        search(query) => {
+            root.anime-search(query);
+        }
+
+        select-anime(index) => {
+            root.anime-select(index);
+        }
+
+        select-episode(index) => {
+            root.anime-select-episode(index);
+        }
+
+        play => {
+            root.anime-play();
+        }
+
+        quality-changed(value) => {
+            root.selected-anime-quality = value;
+            root.anime-quality-changed(value);
+        }
+
+        back => {
+            root.current-page = "search";
         }
     }
 

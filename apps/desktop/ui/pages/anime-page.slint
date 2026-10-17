@@ -1,0 +1,161 @@
+import {
+    Button,
+    ComboBox,
+    LineEdit,
+    VerticalBox,
+    HorizontalBox,
+    ScrollView,
+    Spinner,
+} from "std-widgets.slint";
+
+export component AnimePage inherits Rectangle {
+    in property <[string]> anime-results;
+    in property <[string]> anime-episodes;
+    in property <[string]> anime-qualities: ["Auto"];
+    in property <string> status-text: "";
+    in property <bool> loading: false;
+
+    in-out property <string> selected-anime-title: "";
+    in-out property <string> selected-episode-title: "";
+    in-out property <string> selected-quality: "Auto";
+
+    callback search(string);
+    callback select-anime(int);
+    callback select-episode(int);
+    callback play();
+    callback back();
+    callback quality-changed(string);
+
+    background: #0f0f0f;
+
+    VerticalBox {
+        padding: 20px;
+        spacing: 15px;
+
+        HorizontalBox {
+            spacing: 12px;
+            alignment: center;
+
+            Text {
+                text: "Anime";
+                color: #ffffff;
+                font-size: 27px;
+                font-weight: 700;
+            }
+
+            Button {
+                text: "Back";
+                clicked => { root.back(); }
+            }
+        }
+
+        HorizontalBox {
+            spacing: 8px;
+
+            search-box := LineEdit {
+                placeholder-text: "Search anime...";
+
+                accepted => {
+                    root.search(search-box.text);
+                }
+            }
+
+            Button {
+                text: "Search";
+                enabled: !root.loading;
+
+                clicked => {
+                    root.search(search-box.text);
+                }
+            }
+        }
+
+        if root.loading: HorizontalBox {
+            spacing: 8px;
+
+            Spinner {
+                width: 22px;
+                height: 22px;
+            }
+
+            Text {
+                text: "Loading...";
+                color: #aaaaaa;
+                vertical-alignment: center;
+            }
+        }
+
+        if root.status-text != "": Text {
+            text: root.status-text;
+            color: #999999;
+            font-size: 13px;
+        }
+
+        HorizontalBox {
+            spacing: 20px;
+
+            ScrollView {
+                width: 40%;
+                VerticalLayout {
+                    spacing: 6px;
+
+                    for title[index] in root.anime-results: Button {
+                        text: title;
+                        clicked => {
+                            root.select-anime(index);
+                        }
+                    }
+                }
+            }
+
+            VerticalBox {
+                spacing: 10px;
+
+                Text {
+                    text: root.selected-anime-title;
+                    color: #ffffff;
+                    font-size: 18px;
+                    font-weight: 700;
+                }
+
+                Text {
+                    text: root.selected-episode-title;
+                    color: #aaaaaa;
+                    font-size: 14px;
+                }
+
+                ComboBox {
+                    model: root.anime-qualities;
+                    current-value: root.selected-quality;
+
+                    selected(value) => {
+                        root.selected-quality = value;
+                        root.quality-changed(value);
+                    }
+                }
+
+                Button {
+                    text: "Play";
+                    enabled: root.selected-episode-title != "";
+
+                    clicked => {
+                        root.play();
+                    }
+                }
+
+                ScrollView {
+                    VerticalLayout {
+                        spacing: 6px;
+
+                        for episode[index] in root.anime-episodes: Button {
+                            text: episode;
+                            clicked => {
+                                root.select-episode(index);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

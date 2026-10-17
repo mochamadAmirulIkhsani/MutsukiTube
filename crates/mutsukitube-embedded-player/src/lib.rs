@@ -27,8 +27,25 @@ impl EmbeddedMpvPlayer {
     }
 
     pub fn load(&self, url: &str) -> Result<(), String> {
+        self.load_with_headers(url, &[])
+    }
+
+    pub fn load_with_headers(&self, url: &str, headers: &[(String, String)]) -> Result<(), String> {
+        if headers.is_empty() {
+            return self
+                .mpv
+                .command(&["loadfile", url, "replace"])
+                .map_err(|error| error.to_string());
+        }
+
+        let header_fields = headers
+            .iter()
+            .map(|(key, value)| format!("{key}: {value}"))
+            .collect::<Vec<_>>()
+            .join(",");
+
         self.mpv
-            .command(&["loadfile", url, "replace"])
+            .command(&["loadfile", url, "replace", &format!("http-header-fields={header_fields}")])
             .map_err(|error| error.to_string())
     }
 

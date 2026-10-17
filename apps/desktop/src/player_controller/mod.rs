@@ -30,6 +30,10 @@ pub struct EmbeddedPlayerController {
     current_source: Option<String>,
     was_on_watch_page: bool,
     playback_state: PlaybackState,
+    recovery_attempts: u32,
+    max_recovery_attempts: u32,
+    last_failed_source: Option<String>,
+    reloading_for_recovery: bool,
 }
 
 impl EmbeddedPlayerController {
@@ -39,6 +43,10 @@ impl EmbeddedPlayerController {
             current_source: None,
             was_on_watch_page: false,
             playback_state: PlaybackState::Idle,
+            recovery_attempts: 0,
+            max_recovery_attempts: 2,
+            last_failed_source: None,
+            reloading_for_recovery: false,
         }
     }
 
@@ -73,6 +81,10 @@ impl EmbeddedPlayerController {
     }
 
     pub fn load_video(&mut self, source: &str) -> Result<(), String> {
+        self.load_media(source, &[])
+    }
+
+    pub fn load_media(&mut self, source: &str, headers: &[(String, String)]) -> Result<(), String> {
         if source.trim().is_empty() {
             self.playback_state = PlaybackState::Error;
 
@@ -85,10 +97,15 @@ impl EmbeddedPlayerController {
             return Err("Embedded player is not initialized".into());
         };
 
+        if !self.reloading_for_recovery {
+            self.recovery_attempts = 0;
+            self.last_failed_source = None;
+        }
+
         self.playback_state = PlaybackState::Loading;
         self.current_source = None;
 
-        if let Err(error) = player.load(source) {
+        if let Err(error) = player.load_with_headers(source, headers) {
             self.playback_state = PlaybackState::Error;
             return Err(error);
         }
@@ -191,12 +208,17 @@ impl EmbeddedPlayerController {
 
         let events = player.poll_events();
 
+        let mut recovery_needed = false;
+
         for event in events {
             match event {
                 EmbeddedPlaybackEvent::FileLoaded => {
                     if self.current_source.is_none() {
                         continue;
                     }
+
+                    self.recovery_attempts = 0;
+                    self.last_failed_source = None;
 
                     let paused = player.is_paused().unwrap_or(false);
 
@@ -235,7 +257,22 @@ impl EmbeddedPlayerController {
                     self.playback_state = PlaybackState::Error;
 
                     eprintln!("[MutsukiTube] Playback error event");
+
+                    if self.recovery_attempts < self.max_recovery_attempts
+                        && self.last_failed_source != self.current_source
+                    {
+                        recovery_needed = true;
+                    }
                 }
+            }
+        }
+
+        if recovery_needed {
+            self.recovery_attempts += 1;
+            self.last_failed_source = self.current_source.clone();
+
+            if let Err(error) = self.replay() {
+                eprintln!("[MutsukiTube] Recovery replay failed: {error}");
             }
         }
 
@@ -243,12 +280,14 @@ impl EmbeddedPlayerController {
             self.playback_state,
             PlaybackState::Playing | PlaybackState::Paused
         ) {
-            if let Ok(paused) = player.is_paused() {
-                self.playback_state = if paused {
-                    PlaybackState::Paused
-                } else {
-                    PlaybackState::Playing
-                };
+            if let Some(player) = self.player.as_ref() {
+                if let Ok(paused) = player.is_paused() {
+                    self.playback_state = if paused {
+                        PlaybackState::Paused
+                    } else {
+                        PlaybackState::Playing
+                    };
+                }
             }
         }
     }
@@ -256,7 +295,11 @@ impl EmbeddedPlayerController {
     pub fn replay(&mut self) -> Result<(), String> {
         let source = self.current_source.clone().ok_or("No media loaded")?;
 
-        self.load_video(&source)?;
+        self.reloading_for_recovery = true;
+        let result = self.load_video(&source);
+        self.reloading_for_recovery = false;
+
+        result?;
 
         if let Err(error) = self.play() {
             self.playback_state = PlaybackState::Error;
@@ -278,6 +321,9 @@ impl EmbeddedPlayerController {
         self.current_source = None;
         self.was_on_watch_page = false;
         self.playback_state = PlaybackState::Idle;
+        self.recovery_attempts = 0;
+        self.last_failed_source = None;
+        self.reloading_for_recovery = false;
     }
 }
 
