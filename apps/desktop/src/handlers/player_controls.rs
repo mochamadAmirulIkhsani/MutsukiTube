@@ -57,13 +57,36 @@ pub fn register(ui: &AppWindow, session: Rc<RefCell<NativeVideoSession>>) {
         ui.on_seek_playback(move |seconds| {
             let seconds = seconds as f64;
 
-            if let Err(error) = session.borrow().controller.seek(seconds) {
-                eprintln!("[MutsukiTube] Seek error: {error}");
+            if !seconds.is_finite() || seconds < 0.0 {
+                eprintln!("[MutsukiTube] Invalid seek position: {seconds}");
                 return;
             }
 
-            if let Some(ui) = weak.upgrade() {
-                ui.set_playback_position(seconds as f32);
+            let duration = session.borrow().controller.duration().unwrap_or(0.0);
+
+            if !duration.is_finite() || duration <= 0.0 {
+                eprintln!("[MutsukiTube] Cannot seek: invalid duration");
+                return;
+            }
+
+            let target = seconds.clamp(0.0, duration);
+
+            println!("[MutsukiTube] Seek requested: {:.2}s", target);
+
+            let result = session.borrow().controller.seek(target);
+
+            match result {
+                Ok(()) => {
+                    if let Some(ui) = weak.upgrade() {
+                        ui.set_playback_position(target as f32);
+                    }
+
+                    println!("[MutsukiTube] Seek command accepted: {:.2}s", target);
+                }
+
+                Err(error) => {
+                    eprintln!("[MutsukiTube] Seek error: {error}");
+                }
             }
         });
     }

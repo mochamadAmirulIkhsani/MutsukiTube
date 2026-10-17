@@ -213,7 +213,9 @@ impl EmbeddedPlayerController {
                 }
 
                 EmbeddedPlaybackEvent::EndOfFile => {
-                    if self.current_source.is_some() {
+                    if self.current_source.is_some()
+                        && self.playback_state != PlaybackState::Loading
+                    {
                         self.playback_state = PlaybackState::Finished;
 
                         println!("[MutsukiTube] Playback finished");
@@ -221,17 +223,16 @@ impl EmbeddedPlayerController {
                 }
 
                 EmbeddedPlaybackEvent::Stopped => {
-                    if self.playback_state != PlaybackState::Loading
-                        && self.playback_state != PlaybackState::Finished
-                    {
+                    if !matches!(
+                        self.playback_state,
+                        PlaybackState::Loading | PlaybackState::Finished | PlaybackState::Error
+                    ) {
                         self.playback_state = PlaybackState::Stopped;
                     }
                 }
 
                 EmbeddedPlaybackEvent::Error => {
-                    if self.playback_state != PlaybackState::Loading {
-                        self.playback_state = PlaybackState::Error;
-                    }
+                    self.playback_state = PlaybackState::Error;
 
                     eprintln!("[MutsukiTube] Playback error event");
                 }

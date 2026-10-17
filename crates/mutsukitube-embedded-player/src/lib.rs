@@ -51,9 +51,19 @@ impl EmbeddedMpvPlayer {
     }
 
     pub fn seek(&self, seconds: f64) -> Result<(), String> {
+        if !seconds.is_finite() || seconds < 0.0 {
+            return Err("Invalid seek position".into());
+        }
+
+        println!("[MutsukiTube] libmpv seek requested: {:.2}s", seconds);
+
         self.mpv
             .command(&["seek", &seconds.to_string(), "absolute"])
-            .map_err(|error| error.to_string())
+            .map_err(|error| error.to_string())?;
+
+        println!("[MutsukiTube] libmpv seek command accepted");
+
+        Ok(())
     }
 
     pub fn set_volume(&self, volume: f64) -> Result<(), String> {
@@ -131,6 +141,8 @@ impl EmbeddedMpvPlayer {
 
                     EndFileReason::Error => {
                         events.push(EmbeddedPlaybackEvent::Error);
+
+                        eprintln!("[MutsukiTube] libmpv failed while loading or playing media");
                     }
 
                     _ => {}
