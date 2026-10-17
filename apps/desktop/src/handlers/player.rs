@@ -54,7 +54,9 @@ fn register_open_video(
         let video_id = video_id.to_string();
 
         if !is_valid_video_id(&video_id) {
-            eprintln!("[MutsukiTube] Invalid YouTube video ID: {video_id}");
+            if !video_id.is_empty() {
+                eprintln!("[MutsukiTube] Invalid YouTube video ID: {video_id}");
+            }
             return;
         }
 
@@ -107,7 +109,9 @@ fn register_open_video(ui: &AppWindow, context: &AppContext) {
         let video_id = video_id.to_string();
 
         if !is_valid_video_id(&video_id) {
-            eprintln!("[MutsukiTube] Invalid YouTube video ID: {video_id}");
+            if !video_id.is_empty() {
+                eprintln!("[MutsukiTube] Invalid YouTube video ID: {video_id}");
+            }
             return;
         }
 

@@ -129,7 +129,9 @@ fn main() -> Result<(), slint::PlatformError> {
                     .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_');
 
             if !valid {
-                eprintln!("[MutsukiTube] Invalid browser video ID");
+                if !id.is_empty() {
+                    eprintln!("[MutsukiTube] Invalid browser video ID");
+                }
                 return;
             }
 

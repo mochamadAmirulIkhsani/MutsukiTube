@@ -12,6 +12,28 @@ pub enum EmbeddedPlaybackEvent {
     Error,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn load_without_headers_does_not_return_invalid_parameter() {
+        let player = EmbeddedMpvPlayer::new_headless().unwrap();
+        player.load("https://example.com/video.mp4").unwrap();
+    }
+
+    #[test]
+    fn load_with_headers_does_not_return_invalid_parameter() {
+        let player = EmbeddedMpvPlayer::new_headless().unwrap();
+        player
+            .load_with_headers(
+                "https://example.com/video.mp4",
+                &[("Referer".to_string(), "https://example.com/".to_string())],
+            )
+            .unwrap();
+    }
+}
+
 impl EmbeddedMpvPlayer {
     pub fn new_headless() -> Result<Self, String> {
         let mpv = Mpv::builder()
@@ -49,6 +71,7 @@ impl EmbeddedMpvPlayer {
                 "loadfile",
                 url,
                 "replace",
+                "-1",
                 &format!("http-header-fields={header_fields}"),
             ])
             .map_err(|error| error.to_string())
