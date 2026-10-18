@@ -235,8 +235,14 @@ impl AnimeManager {
             )
         })?;
         let episodes_value = data.get("episodes").cloned().unwrap_or_else(|| json!([]));
-        let episodes: Vec<Episode> = serde_json::from_value(episodes_value)
+        let mut episodes: Vec<Episode> = serde_json::from_value(episodes_value)
             .map_err(|e| AnimeError::new(CATEGORY_MALFORMED_RESPONSE, e.to_string(), false))?;
+
+        // Providers often list newest-first; normalise to ascending order for
+        // every consumer. Identity (number + url) is preserved by the stable
+        // sort in `order_episodes`.
+        crate::ordering::order_episodes(&mut episodes);
+
         Ok(episodes)
     }
 

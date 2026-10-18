@@ -162,6 +162,15 @@ impl EmbeddedMpvPlayer {
             .map_err(|error| error.to_string())
     }
 
+    /// Discard every queued libmpv event without translating it.
+    ///
+    /// Called right before `loadfile replace` so a `FileLoaded` that libmpv
+    /// queued for the outgoing file cannot be mistaken for the incoming file's
+    /// load (which would expose the previous media's duration prematurely).
+    pub fn drain_events(&self) {
+        while self.mpv.poll_event().is_some() {}
+    }
+
     pub fn poll_events(&self) -> Vec<EmbeddedPlaybackEvent> {
         let mut events = Vec::new();
 

@@ -145,6 +145,11 @@ export component AppWindow inherits Window {
     out property <float> video-height:
         watch-page.video-surface-height / 1px;
 
+    /// True while the user is interacting with the seek slider. Read by Rust so
+    /// live timeline updates do not yank the thumb mid-drag.
+    out property <bool> timeline-seek-active:
+        watch-page.seeking;
+
     if root.current-page == "search": SearchPage {
         videos: root.videos;
         loading: root.loading;

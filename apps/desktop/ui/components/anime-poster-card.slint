@@ -39,7 +39,9 @@ export component AnimePosterCard inherits Rectangle {
                 : Theme.surface;
 
             border-width: root.selected ? 2px : 1px;
-            border-color: root.selected ? Theme.accent : Theme.border;
+            border-color: root.selected
+                ? Theme.accent
+                : (touch.has-hover ? Theme.border-strong : Theme.border);
 
             Image {
                 source: root.card.poster;

@@ -958,18 +958,6 @@ fn spawn_playback(
             return;
         };
 
-        if let Ok(mut app_state) = state.lock() {
-            app_state.anime_now_playing = Some(AnimePlaying {
-                provider_id: anime.provider_id.clone(),
-                anime_url: anime.url.clone(),
-                title: anime.title.clone(),
-                thumbnail_url: anime.thumbnail_url.clone().unwrap_or_default(),
-                episode_number: episode.number,
-                episode_title: episode.title.clone(),
-            });
-            app_state.anime_pending_resume = resume_seconds;
-        }
-
         let result = manager
             .stream_with_fallback(
                 &anime,
@@ -998,6 +986,22 @@ fn spawn_playback(
                 ui.set_player_paused(true);
                 ui.set_playback_state("loading".into());
                 ui.set_anime_status_text("".into());
+
+                // Commit the durable identity in the same event-loop turn that
+                // asks the player to load the media. The 200 ms progress timer
+                // reads `anime_now_playing`, so this keeps it impossible to
+                // attribute this episode's position to a different episode.
+                if let Ok(mut app_state) = state.lock() {
+                    app_state.anime_pending_playing = Some(AnimePlaying {
+                        provider_id: anime.provider_id.clone(),
+                        anime_url: anime.url.clone(),
+                        title: anime.title.clone(),
+                        thumbnail_url: anime.thumbnail_url.clone().unwrap_or_default(),
+                        episode_number: episode.number,
+                        episode_title: episode.title.clone(),
+                    });
+                    app_state.anime_pending_resume = resume_seconds;
+                }
 
                 ui.invoke_anime_play_ready(stream.url.into(), encode_headers(&headers).into());
             }

@@ -68,6 +68,11 @@ pub struct AppState {
 
     pub anime_now_playing: Option<AnimePlaying>,
 
+    /// Episode whose playback was just resolved and is about to be loaded in the
+    /// player. Promoted to `anime_now_playing` only when the media actually
+    /// loads, so progress is never attributed to an episode that is not playing.
+    pub anime_pending_playing: Option<AnimePlaying>,
+
     pub anime_pending_resume: Option<u64>,
 
     /// Last unix second we persisted playback progress.

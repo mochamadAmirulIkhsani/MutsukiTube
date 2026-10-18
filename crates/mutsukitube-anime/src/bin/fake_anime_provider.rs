@@ -212,12 +212,26 @@ fn main() {
                     })
                 }
             }
-            "episodes" => json!({
-                "protocolVersion": 1,
-                "requestId": request_id,
-                "success": true,
-                "data": {"episodes": [episode()]}
-            }),
+            "episodes" => {
+                let episodes = if mode == "many-episodes" {
+                    // Deliberately newest-first, to prove the host re-orders.
+                    vec![
+                        episode_n(12),
+                        episode_n(11),
+                        episode_n(10),
+                        episode_n(2),
+                        episode_n(1),
+                    ]
+                } else {
+                    vec![episode()]
+                };
+                json!({
+                    "protocolVersion": 1,
+                    "requestId": request_id,
+                    "success": true,
+                    "data": {"episodes": episodes}
+                })
+            }
             "heights" => json!({
                 "protocolVersion": 1,
                 "requestId": request_id,
@@ -280,5 +294,14 @@ fn episode() -> Value {
         "number": 1,
         "title": "Episode 1",
         "url": "https://fake.example/episode/1"
+    })
+}
+
+fn episode_n(number: i32) -> Value {
+    json!({
+        "providerId": "fake",
+        "number": number,
+        "title": format!("Episode {number}"),
+        "url": format!("https://fake.example/episode/{number}")
     })
 }

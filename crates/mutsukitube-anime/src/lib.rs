@@ -6,6 +6,7 @@ pub mod identity;
 pub mod ipc;
 pub mod manager;
 pub mod models;
+pub mod ordering;
 pub mod process;
 pub mod registry;
 
@@ -20,6 +21,7 @@ pub use identity::{
 pub use ipc::{IpcErrorBody, IpcRequest, IpcResponse};
 pub use manager::AnimeManager;
 pub use models::{Anime, Episode, PROTOCOL_VERSION, PluginInfo, StreamInfo};
+pub use ordering::{order_episodes, parse_episode_number};
 pub use process::{ProcessStatus, ProcessTimeouts, ProviderProcess};
 pub use registry::{
     ProviderConfig, ProviderRegistry, discover_provider_binary, plugin_dir_from_env,

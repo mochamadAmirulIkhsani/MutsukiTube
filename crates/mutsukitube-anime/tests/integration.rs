@@ -1,10 +1,9 @@
 use mutsukitube_anime::{
-    Anime, AnimeManager, Episode, FallbackPolicy, ProcessTimeouts, ProviderConfig,
-    ProviderRegistry, SearchFallbackOutcome, StreamFallbackOutcome,
+    Anime, AnimeManager, Episode, FallbackPolicy, ProcessTimeouts, ProviderConfig, ProviderRegistry,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 
 fn fake_bin() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_fake_anime_provider"))
@@ -63,6 +62,33 @@ async fn episodes_heights_stream() {
         .unwrap();
     assert_eq!(stream.url, "https://example.com/video.mp4");
     assert_eq!(stream.height, Some(720));
+    manager.shutdown_all().await;
+}
+
+/// Providers frequently list episodes newest-first. The manager must normalise
+/// the order to ascending while preserving each episode's identity (number/URL),
+/// so playback and resume keep resolving the correct stream.
+#[tokio::test(flavor = "multi_thread")]
+async fn episodes_are_returned_in_ascending_order() {
+    let registry = registry_for_mode("many-episodes");
+    let manager = AnimeManager::new(registry);
+
+    let episodes = manager
+        .episodes("fake", "https://fake.example/anime/1")
+        .await
+        .unwrap();
+
+    let numbers: Vec<i32> = episodes.iter().map(|episode| episode.number).collect();
+    assert_eq!(numbers, vec![1, 2, 10, 11, 12]);
+
+    for episode in &episodes {
+        assert_eq!(
+            episode.url,
+            format!("https://fake.example/episode/{}", episode.number),
+            "episode identity was not preserved by ordering"
+        );
+    }
+
     manager.shutdown_all().await;
 }
 
@@ -380,8 +406,6 @@ async fn search_auto_all_unavailable() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn search_auto_disabled_skipped() {
-    let mut registry = fallback_registry(vec![("primary", "ok"), ("backup", "ok")]);
-    // Disable primary by rebuilding config.
     let configs = vec![
         ProviderConfig {
             id: "primary".into(),
@@ -402,7 +426,7 @@ async fn search_auto_disabled_skipped() {
             expected_protocol: mutsukitube_anime::PROTOCOL_VERSION,
         },
     ];
-    registry = ProviderRegistry::new(configs);
+    let registry = ProviderRegistry::new(configs);
     let manager = AnimeManager::new(registry);
     let outcome = manager.search_auto("Naruto").await.unwrap();
     assert_eq!(outcome.provider_id.as_deref(), Some("backup"));

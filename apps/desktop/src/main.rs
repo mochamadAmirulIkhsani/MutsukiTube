@@ -38,6 +38,53 @@ mod player_controller;
 
 slint::include_modules!();
 
+/// Persist the currently playing anime episode's position under its own
+/// identity. Called before the player switches media (episode change, leaving
+/// the Watch page, or starting YouTube) so the outgoing episode keeps its own
+/// progress instead of having it overwritten by the incoming media.
+#[cfg(target_os = "windows")]
+fn flush_anime_progress(state: &Arc<Mutex<AppState>>, position: f64, duration: f64) {
+    let position_secs = position.max(0.0) as u64;
+
+    // Nothing meaningful watched yet: do not create an empty history entry.
+    if position_secs == 0 {
+        return;
+    }
+
+    let duration_secs = duration.max(0.0) as u64;
+
+    let Ok(mut app_state) = state.lock() else {
+        return;
+    };
+
+    let Some(playing) = app_state.anime_now_playing.clone() else {
+        return;
+    };
+
+    let key = mutsukitube_storage::anime_key(&playing.provider_id, &playing.anime_url);
+
+    app_state
+        .anime_resume
+        .insert(key, (playing.episode_number, position_secs));
+
+    let entry = mutsukitube_storage::AnimeEntry {
+        provider_id: playing.provider_id.clone(),
+        anime_url: playing.anime_url.clone(),
+        title: playing.title.clone(),
+        thumbnail_url: playing.thumbnail_url.clone(),
+    };
+
+    if let Err(error) = mutsukitube_storage::save_anime_progress(
+        &entry,
+        playing.episode_number,
+        &playing.episode_title,
+        position_secs,
+        duration_secs,
+    ) {
+        eprintln!("[MutsukiTube] Final anime progress save failed: {error}");
+    }
+}
+
 #[cfg(target_os = "windows")]
 fn get_slint_hwnd(ui: &AppWindow) -> Option<windows_sys::Win32::Foundation::HWND> {
     let window = ui.window().window_handle();
@@ -293,23 +340,45 @@ fn main() -> Result<(), slint::PlatformError> {
                 ui.set_player_ready(ready);
 
                 if ready {
-                    let position = session.controller.position().unwrap_or(0.0);
+                    // Only the currently loaded media's own timeline reaches the
+                    // UI. `timeline()` returns empty values while the next file
+                    // loads, so a previous episode's duration/position cannot
+                    // leak onto the incoming episode's slider.
+                    let timeline = session.controller.timeline();
 
-                    let duration = session.controller.duration().unwrap_or(0.0);
+                    let position = timeline.position;
+
+                    let duration = timeline.duration;
 
                     let paused = session.controller.is_paused().unwrap_or(true);
 
-                    if position.is_finite() && position >= 0.0 {
+                    ui.set_player_paused(paused);
+
+                    if timeline.has_duration {
+                        ui.set_playback_duration(duration as f32);
+                    } else {
+                        // Unknown duration for the current media: clear any stale
+                        // maximum so the slider is disabled and no old episode's
+                        // range lingers.
+                        ui.set_playback_duration(0.0);
+                    }
+
+                    // Never yank the thumb while the user is dragging the slider.
+                    if !ui.get_timeline_seek_active() {
                         ui.set_playback_position(position as f32);
                     }
 
-                    if duration.is_finite() && duration >= 0.0 {
-                        ui.set_playback_duration(duration as f32);
-                    }
+                    // A media switch is queued but not yet applied: the player is
+                    // still on the outgoing episode, so neither resume nor
+                    // progress may be attributed to it.
+                    let transition_pending = session.pending_anime_source.is_some()
+                        || session.pending_video_id.is_some();
 
-                    ui.set_player_paused(paused);
-
-                    if is_watch && playback_state == "playing" {
+                    if is_watch
+                        && playback_state == "playing"
+                        && session.controller.media_loaded()
+                        && !transition_pending
+                    {
                         // Apply a pending resume seek once playback is running.
                         if let Some(resume) = session.pending_anime_resume {
                             if resume > 1.0 && position + 2.0 < resume {
@@ -379,6 +448,22 @@ fn main() -> Result<(), slint::PlatformError> {
                                 }
                             });
                         }
+                    }
+                }
+
+                // Leaving the Watch page: give the outgoing episode its final
+                // progress write, then forget the durable identity so nothing
+                // else can be attributed to it. `anime_pending_playing` is left
+                // alone: a just-requested episode may still be resolving its
+                // stream and will consume it when the media actually loads.
+                if ready && !is_watch {
+                    let position = session.controller.position().unwrap_or(0.0);
+                    let duration = session.controller.duration().unwrap_or(0.0);
+
+                    flush_anime_progress(&state_for_timer, position, duration);
+
+                    if let Ok(mut st) = state_for_timer.lock() {
+                        st.anime_now_playing = None;
                     }
                 }
 
@@ -536,6 +621,19 @@ fn main() -> Result<(), slint::PlatformError> {
                 if let Some(source) = session.pending_anime_source.take() {
                     let headers = std::mem::take(&mut session.pending_anime_headers);
 
+                    // Persist the outgoing episode (if any) before the new media
+                    // replaces it, then promote the resolved episode to the
+                    // durable "now playing" identity.
+                    flush_anime_progress(
+                        &state_for_timer,
+                        session.controller.position().unwrap_or(0.0),
+                        session.controller.duration().unwrap_or(0.0),
+                    );
+
+                    if let Ok(mut st) = state_for_timer.lock() {
+                        st.anime_now_playing = st.anime_pending_playing.take();
+                    }
+
                     video_loading.set(true);
 
                     ui.set_playback_state("loading".into());
@@ -550,6 +648,11 @@ fn main() -> Result<(), slint::PlatformError> {
                             }
 
                             println!("[MutsukiTube] Embedded anime source requested");
+
+                            println!(
+                                "[MutsukiTube] Anime media generation {}",
+                                session.controller.media_generation()
+                            );
                         }
                         Err(error) => {
                             eprintln!("[MutsukiTube] Embedded anime load error: {error}");
@@ -559,6 +662,20 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                     }
                 } else if let Some(video_id) = session.pending_video_id.take() {
+                    // Switching to YouTube: the anime episode is no longer the
+                    // player's media, so stop attributing timeline/progress to
+                    // it. `anime_pending_*` are intentionally left for the next
+                    // resolved anime load to overwrite/consume.
+                    flush_anime_progress(
+                        &state_for_timer,
+                        session.controller.position().unwrap_or(0.0),
+                        session.controller.duration().unwrap_or(0.0),
+                    );
+
+                    if let Ok(mut st) = state_for_timer.lock() {
+                        st.anime_now_playing = None;
+                    }
+
                     video_loading.set(true);
 
                     ui.set_playback_state("loading".into());

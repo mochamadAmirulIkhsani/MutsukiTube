@@ -10,11 +10,24 @@ export component PosterShelf inherits VerticalLayout {
 
     spacing: 12px;
 
-    if root.heading != "": Text {
-        text: root.heading;
-        color: Theme.text-primary;
-        font-size: 18px;
-        font-weight: 700;
+    if root.heading != "": HorizontalLayout {
+        spacing: 10px;
+        alignment: center;
+
+        Rectangle {
+            width: 3px;
+            height: 18px;
+            border-radius: 2px;
+            background: Theme.accent;
+        }
+
+        Text {
+            text: root.heading;
+            color: Theme.text-primary;
+            font-size: 18px;
+            font-weight: 700;
+            vertical-alignment: center;
+        }
     }
 
     FlexboxLayout {

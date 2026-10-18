@@ -1,5 +1,9 @@
 use mutsukitube_embedded_player::{EmbeddedMpvPlayer, EmbeddedPlaybackEvent};
 
+mod timeline;
+
+pub use timeline::TimelineSnapshot;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlaybackState {
     Idle,
@@ -34,6 +38,13 @@ pub struct EmbeddedPlayerController {
     max_recovery_attempts: u32,
     last_failed_source: Option<String>,
     reloading_for_recovery: bool,
+    /// Whether the *current* media has finished loading. Reset on every
+    /// `load_media` so the previous file's libmpv properties cannot leak into
+    /// the new media's timeline.
+    media_loaded: bool,
+    /// Monotonic media-load counter. Increments on every `load_media`; used to
+    /// reason about which load asynchronous events belong to.
+    generation: u64,
 }
 
 impl EmbeddedPlayerController {
@@ -47,6 +58,8 @@ impl EmbeddedPlayerController {
             max_recovery_attempts: 2,
             last_failed_source: None,
             reloading_for_recovery: false,
+            media_loaded: false,
+            generation: 0,
         }
     }
 
@@ -105,6 +118,13 @@ impl EmbeddedPlayerController {
         self.playback_state = PlaybackState::Loading;
         self.current_source = None;
 
+        // New media session: drop any events still queued for the outgoing file
+        // (e.g. a late `FileLoaded`) and mark the timeline empty until the
+        // incoming file reports its own metadata.
+        self.generation = self.generation.wrapping_add(1);
+        self.media_loaded = false;
+        player.drain_events();
+
         if let Err(error) = player.load_with_headers(source, headers) {
             self.playback_state = PlaybackState::Error;
             return Err(error);
@@ -149,6 +169,7 @@ impl EmbeddedPlayerController {
 
         self.current_source = None;
         self.playback_state = PlaybackState::Stopped;
+        self.media_loaded = false;
 
         Ok(())
     }
@@ -181,6 +202,26 @@ impl EmbeddedPlayerController {
 
     pub fn duration(&self) -> Option<f64> {
         self.player.as_ref()?.duration().ok()
+    }
+
+    /// Whether the media currently being loaded has finished loading.
+    pub fn media_loaded(&self) -> bool {
+        self.media_loaded
+    }
+
+    /// Monotonic id of the current media load. Changes on every `load_media`.
+    pub fn media_generation(&self) -> u64 {
+        self.generation
+    }
+
+    /// Resolved timeline for the *current* media. While loading, this is empty
+    /// so the previous media's duration/position cannot reach the UI.
+    pub fn timeline(&self) -> TimelineSnapshot {
+        if !self.media_loaded {
+            return TimelineSnapshot::default();
+        }
+
+        timeline::resolve_timeline(true, self.position(), self.duration())
     }
 
     pub fn is_paused(&self) -> Option<bool> {
@@ -219,6 +260,9 @@ impl EmbeddedPlayerController {
 
                     self.recovery_attempts = 0;
                     self.last_failed_source = None;
+
+                    // The incoming file's own metadata is now authoritative.
+                    self.media_loaded = true;
 
                     let paused = player.is_paused().unwrap_or(false);
 
@@ -324,6 +368,8 @@ impl EmbeddedPlayerController {
         self.recovery_attempts = 0;
         self.last_failed_source = None;
         self.reloading_for_recovery = false;
+        self.media_loaded = false;
+        self.generation = 0;
     }
 }
 
