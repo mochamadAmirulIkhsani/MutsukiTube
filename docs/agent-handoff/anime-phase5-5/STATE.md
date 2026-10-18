@@ -8,6 +8,7 @@ Authoritative resume state. Keep this file current.
 - Branch: `feat/anime-ux-phase5-5` (local only — **not pushed**)
 - Base: `ddddc677f5c421585ee5a5c3f172a3f44dc7e902`
 - Code + docs commit: `6b82fd3b3ed234d52f85fe38310ba3530deec353`
+- Follow-up fix commit: `4d443b9` (view switching via conditionals; resume from search)
 
 ## Objective
 
