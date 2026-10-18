@@ -64,5 +64,5 @@ Each checkpoint: what changed, how it was tested, current status. Statuses:
   `cargo test --workspace` (all green), `cargo build -p mutsukitube-desktop`.
 - Fixed three pre-existing warnings in `crates/mutsukitube-anime/tests/integration.rs`.
 - Wrote `BUG_ANALYSIS.md`, `TEST_RESULTS.md`, `MANUAL_TEST_PLAN.md`, this file,
-  `STATE.md`. Local commit.
+  `STATE.md`. Local commit `a0fbf0e`.
 - Status: **tested**; visual/manual acceptance **NOT_RUN**.

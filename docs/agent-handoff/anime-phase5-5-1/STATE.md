@@ -7,7 +7,7 @@ Authoritative resume state. Keep this file current.
 - Rust repo: `D:\Projects\mutsukitube-folder\mutsukitube`
 - Branch: `fix/anime-ux-refinement` (local only — **not pushed**)
 - Base: `5d5126b` (`feat/anime-ux-phase5-5` tip)
-- Code + docs commit: see `CHECKPOINTS.md` REF-06
+- Code + docs commit: `a0fbf0e` on `fix/anime-ux-refinement`
 - Go repo: `D:\Projects\mutsukitube-folder\mutsukitube-anime-plugins` — untouched
 
 ## Objective
