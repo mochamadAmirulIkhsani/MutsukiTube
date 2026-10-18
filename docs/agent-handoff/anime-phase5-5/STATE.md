@@ -7,7 +7,7 @@ Authoritative resume state. Keep this file current.
 - Rust repo: `D:\Projects\mutsukitube-folder\mutsukitube`
 - Branch: `feat/anime-ux-phase5-5` (local only — **not pushed**)
 - Base: `ddddc677f5c421585ee5a5c3f172a3f44dc7e902`
-- Code + docs commit: `<fill after commit>`
+- Code + docs commit: `6b82fd3b3ed234d52f85fe38310ba3530deec353`
 
 ## Objective
 
