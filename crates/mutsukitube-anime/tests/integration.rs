@@ -665,6 +665,46 @@ async fn installed_version_directory_is_discovered_and_handshakes() {
     manager.shutdown_all().await;
 }
 
+/// `available_provider_ids` must only report plugins whose executable exists,
+/// so the Anime Home can decide between real content and setup onboarding.
+#[tokio::test(flavor = "multi_thread")]
+async fn available_providers_require_existing_executable() {
+    // Empty install directory: every configured provider is missing.
+    let empty = tempfile::tempdir().unwrap();
+    let empty_registry = ProviderRegistry::with_standard(Some(empty.path().to_path_buf()));
+    let empty_manager = AnimeManager::new(empty_registry);
+
+    assert!(
+        !empty_manager.provider_ids().is_empty(),
+        "standard registry still lists configured providers"
+    );
+    assert!(
+        empty_manager.available_provider_ids().is_empty(),
+        "no provider executable exists yet"
+    );
+    empty_manager.shutdown_all().await;
+
+    // Directory with a single real binary: exactly that provider is available.
+    let source_binary = real_plugin_source_base().join(real_plugin_binary_name());
+    if !source_binary.is_file() {
+        eprintln!(
+            "skipping available-provider test: {} not found",
+            source_binary.display()
+        );
+        return;
+    }
+
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::copy(&source_binary, temp.path().join(real_plugin_binary_name())).unwrap();
+
+    let registry = ProviderRegistry::with_standard(Some(temp.path().to_path_buf()));
+    let manager = AnimeManager::new(registry);
+
+    assert_eq!(manager.available_provider_ids(), vec!["ylnime".to_string()]);
+
+    manager.shutdown_all().await;
+}
+
 fn real_plugin_source_base() -> PathBuf {
     if let Ok(dir) = std::env::var("MUTSUKITUBE_ANIME_PLUGIN_DIR") {
         PathBuf::from(dir)

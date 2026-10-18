@@ -2,6 +2,8 @@
 import { SearchPage } from "pages/search-page.slint";
 import { WatchPage } from "pages/watch-page.slint";
 import { AnimePage } from "pages/anime-page.slint";
+import { AnimeCard } from "components/anime-poster-card.slint";
+import { EpisodeItem } from "components/episode-row.slint";
 import { VideoItem } from "components/video-card.slint";
 import { HistoryPage } from "pages/history-page.slint";
 import { SettingsPage } from "pages/settings-page.slint";
@@ -35,14 +37,34 @@ export component AppWindow inherits Window {
     in-out property <string> provider-mode: "auto";
     in-out property <string> settings-status: "";
 
-    in-out property <[string]> anime-results;
-    in-out property <[string]> anime-episodes;
     in-out property <[string]> anime-qualities: ["Auto"];
     in-out property <string> selected-anime-title: "";
     in-out property <string> selected-anime-quality: "Auto";
     in-out property <string> selected-episode-title: "";
     in-out property <string> anime-status-text: "";
     in-out property <bool> anime-loading: false;
+
+    // Anime library (Phase 5.5)
+    in-out property <string> anime-view: "home";
+    in-out property <bool> anime-plugins-ready: false;
+    in-out property <string> anime-status-kind: "info";
+    in-out property <string> anime-results-heading: "";
+    in-out property <string> anime-selected-key: "";
+    in-out property <[AnimeCard]> anime-continue-cards;
+    in-out property <[AnimeCard]> anime-recent-cards;
+    in-out property <[AnimeCard]> anime-favorite-cards;
+    in-out property <[AnimeCard]> anime-result-cards;
+    in-out property <string> anime-detail-title: "";
+    in-out property <string> anime-detail-subtitle: "";
+    in-out property <string> anime-detail-description: "";
+    in-out property <string> anime-detail-badge: "";
+    in-out property <image> anime-detail-poster;
+    in-out property <bool> anime-detail-has-poster: false;
+    in-out property <bool> anime-detail-favorite: false;
+    in-out property <string> anime-detail-loading-text: "";
+    in-out property <[EpisodeItem]> anime-episode-items;
+    in-out property <int> anime-selected-episode-number: -1;
+    in-out property <string> anime-resume-label: "";
 
     in-out property <[VideoItem]> library-videos;
     in-out property <[string]> playlist-names;
@@ -76,12 +98,14 @@ export component AppWindow inherits Window {
     callback refresh-history();
     callback show-anime();
     callback anime-search(string);
-    callback anime-select(int);
+    callback anime-select(string);
     callback anime-select-episode(int);
     callback anime-play();
+    callback anime-resume();
+    callback anime-toggle-favorite();
+    callback anime-back();
     callback anime-play-ready(string, string);
     callback anime-install-plugins();
-    callback anime-quality-changed(string);
 
     callback show-library();
     callback refresh-library();
@@ -164,43 +188,65 @@ export component AppWindow inherits Window {
     }
 
     if root.current-page == "anime": AnimePage {
-        anime-results: root.anime-results;
-        anime-episodes: root.anime-episodes;
-        anime-qualities: root.anime-qualities;
+        view: root.anime-view;
+        plugins-ready: root.anime-plugins-ready;
+
         status-text: root.anime-status-text;
+        status-kind: root.anime-status-kind;
         loading: root.anime-loading;
 
-        selected-anime-title: root.selected-anime-title;
-        selected-episode-title: root.selected-episode-title;
+        continue-cards: root.anime-continue-cards;
+        recent-cards: root.anime-recent-cards;
+        favorite-cards: root.anime-favorite-cards;
+        result-cards: root.anime-result-cards;
+        results-heading: root.anime-results-heading;
+        selected-key: root.anime-selected-key;
+
+        detail-title: root.anime-detail-title;
+        detail-subtitle: root.anime-detail-subtitle;
+        detail-description: root.anime-detail-description;
+        detail-badge: root.anime-detail-badge;
+        detail-poster: root.anime-detail-poster;
+        detail-has-poster: root.anime-detail-has-poster;
+        detail-favorite: root.anime-detail-favorite;
+        detail-loading-text: root.anime-detail-loading-text;
+        episodes: root.anime-episode-items;
+        selected-episode-number: root.anime-selected-episode-number;
+        resume-label: root.anime-resume-label;
+
+        qualities: root.anime-qualities;
         selected-quality: root.selected-anime-quality;
 
         search(query) => {
             root.anime-search(query);
         }
 
-        select-anime(index) => {
-            root.anime-select(index);
+        select-anime(key) => {
+            root.anime-select(key);
         }
 
-        select-episode(index) => {
-            root.anime-select-episode(index);
+        select-episode(number) => {
+            root.anime-select-episode(number);
         }
 
         play => {
             root.anime-play();
         }
 
+        resume => {
+            root.anime-resume();
+        }
+
+        toggle-favorite => {
+            root.anime-toggle-favorite();
+        }
+
         install-plugins => {
             root.anime-install-plugins();
         }
 
-        quality-changed(value) => {
-            root.selected-anime-quality = value;
-            root.anime-quality-changed(value);
-        }
-
         back => {
-            root.current-page = "search";
+            root.anime-back();
         }
     }
 

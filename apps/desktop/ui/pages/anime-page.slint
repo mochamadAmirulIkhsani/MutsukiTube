@@ -2,162 +2,388 @@ import {
     Button,
     ComboBox,
     LineEdit,
-    VerticalBox,
-    HorizontalBox,
     ScrollView,
     Spinner,
 } from "std-widgets.slint";
 
+import { Theme } from "../theme.slint";
+import { AnimeCard, AnimePosterCard } from "../components/anime-poster-card.slint";
+import { EpisodeItem, EpisodeRow } from "../components/episode-row.slint";
+import { PosterShelf } from "../components/poster-shelf.slint";
+
 export component AnimePage inherits Rectangle {
-    in property <[string]> anime-results;
-    in property <[string]> anime-episodes;
-    in property <[string]> anime-qualities: ["Auto"];
+    // "home" | "details" | "setup"
+    in property <string> view: "home";
+    in property <bool> plugins-ready: false;
+
     in property <string> status-text: "";
+    in property <string> status-kind: "info";
     in property <bool> loading: false;
 
-    in-out property <string> selected-anime-title: "";
-    in-out property <string> selected-episode-title: "";
+    // Home shelves
+    in property <[AnimeCard]> continue-cards;
+    in property <[AnimeCard]> recent-cards;
+    in property <[AnimeCard]> favorite-cards;
+    in property <[AnimeCard]> result-cards;
+    in property <string> results-heading: "";
+    in property <string> selected-key: "";
+
+    // Details
+    in property <string> detail-title: "";
+    in property <string> detail-subtitle: "";
+    in property <string> detail-description: "";
+    in property <string> detail-badge: "";
+    in property <image> detail-poster;
+    in property <bool> detail-has-poster: false;
+    in property <bool> detail-favorite: false;
+    in property <string> detail-loading-text: "";
+    in property <int> selected-episode-number: -1;
+    in property <string> resume-label: "";
+    in property <[EpisodeItem]> episodes;
+
+    in property <[string]> qualities: ["Auto"];
     in-out property <string> selected-quality: "Auto";
 
     callback search(string);
-    callback select-anime(int);
+    callback select-anime(string);
     callback select-episode(int);
     callback play();
+    callback resume();
+    callback toggle-favorite();
     callback back();
-    callback quality-changed(string);
     callback install-plugins();
 
-    background: #0f0f0f;
+    background: Theme.bg;
 
-    VerticalBox {
-        padding: 20px;
-        spacing: 15px;
-
-        HorizontalBox {
-            spacing: 12px;
-            alignment: center;
-
-            Text {
-                text: "Anime";
-                color: #ffffff;
-                font-size: 27px;
-                font-weight: 700;
-            }
-
-            Button {
-                text: "Back";
-                clicked => { root.back(); }
-            }
-
-            Button {
-                text: "Install Plugins";
-                clicked => { root.install-plugins(); }
-            }
+    function status-color() -> color {
+        if (root.status-kind == "error") {
+            return Theme.danger;
         }
+        if (root.status-kind == "offline") {
+            return #e0a458;
+        }
+        return Theme.text-secondary;
+    }
 
-        HorizontalBox {
-            spacing: 8px;
+    VerticalLayout {
+        spacing: 0px;
 
-            search-box := LineEdit {
-                placeholder-text: "Search anime...";
+        // ---------------------------------------------------------------- header
+        Rectangle {
+            height: 64px;
+            background: Theme.surface-sunken;
 
-                accepted => {
-                    root.search(search-box.text);
+            HorizontalLayout {
+                padding-left: 20px;
+                padding-right: 20px;
+                spacing: 14px;
+                alignment: center;
+
+                Button {
+                    text: "‹ Back";
+                    clicked => { root.back(); }
                 }
-            }
-
-            Button {
-                text: "Search";
-                enabled: !root.loading;
-
-                clicked => {
-                    root.search(search-box.text);
-                }
-            }
-        }
-
-        if root.loading: HorizontalBox {
-            spacing: 8px;
-
-            Spinner {
-                width: 22px;
-                height: 22px;
-            }
-
-            Text {
-                text: "Loading...";
-                color: #aaaaaa;
-                vertical-alignment: center;
-            }
-        }
-
-        if root.status-text != "": Text {
-            text: root.status-text;
-            color: #999999;
-            font-size: 13px;
-        }
-
-        HorizontalBox {
-            spacing: 20px;
-
-            ScrollView {
-                width: 40%;
-                VerticalLayout {
-                    spacing: 6px;
-
-                    for title[index] in root.anime-results: Button {
-                        text: title;
-                        clicked => {
-                            root.select-anime(index);
-                        }
-                    }
-                }
-            }
-
-            VerticalBox {
-                spacing: 10px;
 
                 Text {
-                    text: root.selected-anime-title;
-                    color: #ffffff;
-                    font-size: 18px;
+                    text: "Anime";
+                    color: Theme.text-primary;
+                    font-size: 22px;
                     font-weight: 700;
+                    vertical-alignment: center;
                 }
 
-                Text {
-                    text: root.selected-episode-title;
-                    color: #aaaaaa;
-                    font-size: 14px;
+                Rectangle {
+                    background: transparent;
+                    horizontal-stretch: 1;
                 }
 
-                ComboBox {
-                    model: root.anime-qualities;
-                    current-value: root.selected-quality;
-
-                    selected(value) => {
-                        root.selected-quality = value;
-                        root.quality-changed(value);
-                    }
+                search-box := LineEdit {
+                    width: 320px;
+                    placeholder-text: "Search anime...";
+                    enabled: !root.loading;
+                    accepted => { root.search(search-box.text); }
                 }
 
                 Button {
-                    text: "Play";
-                    enabled: root.selected-episode-title != "";
+                    text: "Search";
+                    enabled: !root.loading && search-box.text != "";
+                    clicked => { root.search(search-box.text); }
+                }
+            }
+        }
 
-                    clicked => {
-                        root.play();
+        // ------------------------------------------------------------ status bar
+        if root.loading || root.status-text != "": Rectangle {
+            height: 34px;
+            background: Theme.bg;
+
+            HorizontalLayout {
+                padding-left: 20px;
+                padding-right: 20px;
+                spacing: 10px;
+                alignment: center;
+
+                if root.loading: Spinner {
+                    width: 16px;
+                    height: 16px;
+                }
+
+                Text {
+                    text: root.loading ? "Working..." : root.status-text;
+                    color: root.status-color();
+                    font-size: 13px;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        // ---------------------------------------------------------------- content
+        Rectangle {
+            visible: root.view == "setup";
+            background: Theme.bg;
+
+            VerticalLayout {
+                alignment: center;
+                spacing: 14px;
+                padding: 40px;
+
+                Text {
+                    text: "A";
+                    color: Theme.accent;
+                    font-size: 52px;
+                    font-weight: 800;
+                    horizontal-alignment: center;
+                }
+
+                Text {
+                    text: "Anime plugins are required to search and watch anime.";
+                    color: Theme.text-primary;
+                    font-size: 20px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                }
+
+                Text {
+                    text: "MutsukiTube installs signed provider plugins and verifies them before use.";
+                    color: Theme.text-secondary;
+                    font-size: 14px;
+                    horizontal-alignment: center;
+                    width: 520px;
+                    wrap: word-wrap;
+                }
+
+                Button {
+                    text: "Install Anime Plugins";
+                    enabled: !root.loading;
+                    clicked => { root.install-plugins(); }
+                }
+
+                Text {
+                    text: "Anime search and playback run locally on your PC.";
+                    color: Theme.text-muted;
+                    font-size: 12px;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+
+        ScrollView {
+            visible: root.view == "details";
+            VerticalLayout {
+                spacing: 22px;
+                padding-bottom: 30px;
+
+                // Hero
+                Rectangle {
+                    height: 300px;
+                    background: Theme.surface-sunken;
+
+                    HorizontalLayout {
+                        padding: 26px;
+                        spacing: 26px;
+
+                        Rectangle {
+                            width: 176px;
+                            height: 264px;
+                            border-radius: Theme.radius;
+                            clip: true;
+                            background: Theme.surface;
+                            border-width: 1px;
+                            border-color: Theme.border;
+
+                            Image {
+                                source: root.detail-poster;
+                                width: 100%;
+                                height: 100%;
+                                image-fit: cover;
+                            }
+
+                            if !root.detail-has-poster: Text {
+                                text: root.detail-title;
+                                color: Theme.text-muted;
+                                font-size: 14px;
+                                wrap: word-wrap;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        VerticalLayout {
+                            spacing: 10px;
+
+                            Text {
+                                text: root.detail-title;
+                                color: Theme.text-primary;
+                                font-size: 30px;
+                                font-weight: 800;
+                                wrap: word-wrap;
+                                max-lines: 3;
+                                overflow: elide;
+                            }
+
+                            if root.detail-badge != "": Text {
+                                text: root.detail-badge;
+                                color: Theme.text-muted;
+                                font-size: 13px;
+                            }
+
+                            Text {
+                                text: root.detail-subtitle;
+                                color: Theme.text-secondary;
+                                font-size: 14px;
+                            }
+
+                            HorizontalLayout {
+                                spacing: 12px;
+
+                                Button {
+                                    text: root.resume-label != "" ? root.resume-label : "▶ Play";
+                                    enabled: root.selected-episode-number > 0;
+                                    clicked => {
+                                        if (root.resume-label != "") {
+                                            root.resume();
+                                        } else {
+                                            root.play();
+                                        }
+                                    }
+                                }
+
+                                Button {
+                                    text: root.detail-favorite ? "★ Favorited" : "☆ Favorite";
+                                    clicked => { root.toggle-favorite(); }
+                                }
+
+                                if root.qualities.length > 1: ComboBox {
+                                    model: root.qualities;
+                                    current-value: root.selected-quality;
+                                    width: 110px;
+                                    selected(value) => {
+                                        root.selected-quality = value;
+                                    }
+                                }
+                            }
+
+                            if root.detail-description != "": Text {
+                                text: root.detail-description;
+                                color: Theme.text-secondary;
+                                font-size: 14px;
+                                wrap: word-wrap;
+                                max-lines: 4;
+                                overflow: elide;
+                            }
+                        }
                     }
                 }
 
-                ScrollView {
-                    VerticalLayout {
-                        spacing: 6px;
+                // Episodes
+                VerticalLayout {
+                    padding-left: 26px;
+                    padding-right: 26px;
+                    spacing: 12px;
 
-                        for episode[index] in root.anime-episodes: Button {
-                            text: episode;
-                            clicked => {
-                                root.select-episode(index);
-                            }
+                    Text {
+                        text: "Episodes";
+                        color: Theme.text-primary;
+                        font-size: 18px;
+                        font-weight: 700;
+                    }
+
+                    if root.detail-loading-text != "": Text {
+                        text: root.detail-loading-text;
+                        color: Theme.text-muted;
+                        font-size: 13px;
+                    }
+
+                    for episode in root.episodes: EpisodeRow {
+                        item: episode;
+                        selected: episode.number == root.selected-episode-number;
+                        clicked(number) => { root.select-episode(number); }
+                    }
+                }
+            }
+        }
+
+        ScrollView {
+            visible: root.view == "home";
+            VerticalLayout {
+                padding: 22px;
+                spacing: 26px;
+
+                if root.result-cards.length > 0: PosterShelf {
+                    heading: root.results-heading != "" ? root.results-heading : "Results";
+                    cards: root.result-cards;
+                    selected-key: root.selected-key;
+                    activated(key) => { root.select-anime(key); }
+                }
+
+                if root.continue-cards.length > 0: PosterShelf {
+                    heading: "Continue Watching";
+                    cards: root.continue-cards;
+                    selected-key: root.selected-key;
+                    activated(key) => { root.select-anime(key); }
+                }
+
+                if root.recent-cards.length > 0: PosterShelf {
+                    heading: "Recently Watched";
+                    cards: root.recent-cards;
+                    selected-key: root.selected-key;
+                    activated(key) => { root.select-anime(key); }
+                }
+
+                if root.favorite-cards.length > 0: PosterShelf {
+                    heading: "My Anime";
+                    cards: root.favorite-cards;
+                    selected-key: root.selected-key;
+                    activated(key) => { root.select-anime(key); }
+                }
+
+                // Empty onboarding state
+                if root.result-cards.length == 0
+                    && root.continue-cards.length == 0
+                    && root.recent-cards.length == 0
+                    && root.favorite-cards.length == 0: Rectangle {
+                    background: transparent;
+                    height: 360px;
+
+                    VerticalLayout {
+                        alignment: center;
+                        spacing: 12px;
+
+                        Text {
+                            text: "Find something to watch";
+                            color: Theme.text-primary;
+                            font-size: 22px;
+                            font-weight: 700;
+                            horizontal-alignment: center;
+                        }
+
+                        Text {
+                            text: "Search for an anime by title to start watching. In-progress episodes and favorites appear here.";
+                            color: Theme.text-secondary;
+                            font-size: 14px;
+                            horizontal-alignment: center;
+                            width: 520px;
+                            wrap: word-wrap;
                         }
                     }
                 }

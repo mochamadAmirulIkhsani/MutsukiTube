@@ -220,6 +220,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let was_minimized = Cell::new(false);
         let video_loading = Cell::new(false);
         let last_playback_state = RefCell::new(String::new());
+        let state_for_timer = state.clone();
+        let progress_handle = tokio_handle.clone();
 
         timer.start(
             slint::TimerMode::Repeated,
@@ -306,6 +308,78 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
 
                     ui.set_player_paused(paused);
+
+                    if is_watch && playback_state == "playing" {
+                        // Apply a pending resume seek once playback is running.
+                        if let Some(resume) = session.pending_anime_resume {
+                            if resume > 1.0 && position + 2.0 < resume {
+                                if let Err(error) = session.controller.seek(resume) {
+                                    eprintln!("[MutsukiTube] Resume seek error: {error}");
+                                } else {
+                                    println!("[MutsukiTube] Resumed anime at {resume:.0}s");
+                                }
+                            }
+
+                            session.pending_anime_resume = None;
+                        }
+
+                        // Persist playback progress at most every 5 seconds.
+                        let now = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_secs())
+                            .unwrap_or(0);
+
+                        let pending = match state_for_timer.lock() {
+                            Ok(mut st) => {
+                                if now.saturating_sub(st.anime_last_progress_save) < 5 {
+                                    None
+                                } else {
+                                    st.anime_last_progress_save = now;
+
+                                    st.anime_now_playing.clone().map(|playing| {
+                                        let key = mutsukitube_storage::anime_key(
+                                            &playing.provider_id,
+                                            &playing.anime_url,
+                                        );
+
+                                        st.anime_resume.insert(
+                                            key,
+                                            (playing.episode_number, position.max(0.0) as u64),
+                                        );
+
+                                        playing
+                                    })
+                                }
+                            }
+                            Err(_) => None,
+                        };
+
+                        if let Some(playing) = pending {
+                            let position_secs = position.max(0.0) as u64;
+                            let duration_secs = duration.max(0.0) as u64;
+
+                            let handle = progress_handle.clone();
+
+                            handle.spawn(async move {
+                                let entry = mutsukitube_storage::AnimeEntry {
+                                    provider_id: playing.provider_id.clone(),
+                                    anime_url: playing.anime_url.clone(),
+                                    title: playing.title.clone(),
+                                    thumbnail_url: playing.thumbnail_url.clone(),
+                                };
+
+                                if let Err(error) = mutsukitube_storage::save_anime_progress(
+                                    &entry,
+                                    playing.episode_number,
+                                    &playing.episode_title,
+                                    position_secs,
+                                    duration_secs,
+                                ) {
+                                    eprintln!("[MutsukiTube] Progress save failed: {error}");
+                                }
+                            });
+                        }
+                    }
                 }
 
                 session.controller.on_navigation(is_watch);

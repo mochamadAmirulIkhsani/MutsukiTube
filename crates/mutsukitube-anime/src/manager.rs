@@ -91,6 +91,19 @@ impl AnimeManager {
         self.registry.lock().unwrap().ids_by_priority()
     }
 
+    /// Provider ids whose executable actually exists on disk. Used to decide
+    /// whether Anime Home can show content or must show plugin onboarding.
+    pub fn available_provider_ids(&self) -> Vec<String> {
+        self.registry
+            .lock()
+            .unwrap()
+            .enabled_providers()
+            .into_iter()
+            .filter(|config| config.executable_path.is_file())
+            .map(|config| config.id.clone())
+            .collect()
+    }
+
     pub fn reload_registry(&self, plugin_dir: Option<std::path::PathBuf>) {
         let dir = plugin_dir.unwrap_or_else(|| self.plugin_dir.clone());
         let registry = ProviderRegistry::with_standard(Some(dir.clone()));

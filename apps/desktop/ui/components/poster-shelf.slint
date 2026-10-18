@@ -1,0 +1,32 @@
+import { AnimeCard, AnimePosterCard } from "anime-poster-card.slint";
+import { Theme } from "../theme.slint";
+
+export component PosterShelf inherits VerticalLayout {
+    in property <string> heading: "";
+    in property <[AnimeCard]> cards;
+    in property <string> selected-key: "";
+
+    callback activated(string);
+
+    spacing: 12px;
+
+    if root.heading != "": Text {
+        text: root.heading;
+        color: Theme.text-primary;
+        font-size: 18px;
+        font-weight: 700;
+    }
+
+    FlexboxLayout {
+        spacing: Theme.gap;
+        flex-direction: row;
+        flex-wrap: wrap;
+        alignment: start;
+
+        for card in root.cards: AnimePosterCard {
+            card: card;
+            selected: card.key == root.selected-key;
+            clicked(key) => { root.activated(key); }
+        }
+    }
+}

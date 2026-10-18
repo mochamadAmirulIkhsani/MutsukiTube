@@ -1,5 +1,20 @@
+use std::collections::HashMap;
+
 use mutsukitube_anime::{Anime, Episode};
 use mutsukitube_core::Video;
+
+/// Durable identity of the anime episode currently loaded in the player.
+/// Streaming URLs are never stored here; only provider identity and episode
+/// number, so Continue Watching can resolve the episode again later.
+#[derive(Debug, Clone)]
+pub struct AnimePlaying {
+    pub provider_id: String,
+    pub anime_url: String,
+    pub title: String,
+    pub thumbnail_url: String,
+    pub episode_number: i32,
+    pub episode_title: String,
+}
 
 #[derive(Default)]
 pub struct AppState {
@@ -36,4 +51,25 @@ pub struct AppState {
     pub anime_loading: bool,
 
     pub anime_qualities: Vec<String>,
+
+    // ---- Anime library (Phase 5.5) -----------------------------------------
+    /// "home" | "details" | "setup"
+    pub anime_view: String,
+
+    pub anime_selected_key: String,
+
+    /// Lookup for every card currently displayed (home shelves + results).
+    pub anime_cards: HashMap<String, Anime>,
+
+    /// Resume position per anime key: (episode_number, position_seconds).
+    pub anime_resume: HashMap<String, (i32, u64)>,
+
+    pub anime_selected_episode_number: i32,
+
+    pub anime_now_playing: Option<AnimePlaying>,
+
+    pub anime_pending_resume: Option<u64>,
+
+    /// Last unix second we persisted playback progress.
+    pub anime_last_progress_save: u64,
 }

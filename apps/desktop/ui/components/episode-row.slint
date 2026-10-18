@@ -1,0 +1,119 @@
+import { Theme } from "../theme.slint";
+
+export struct EpisodeItem {
+    number: int,
+    title: string,
+    status: string,
+    duration: string,
+    watched: bool,
+    playing: bool,
+    has-thumbnail: bool,
+    thumbnail: image,
+}
+
+export component EpisodeRow inherits Rectangle {
+    in property <EpisodeItem> item;
+    in property <bool> selected: false;
+
+    callback clicked(int);
+
+    height: 82px;
+    border-radius: Theme.radius-sm;
+
+    background: root.selected
+        ? Theme.accent-soft
+        : (touch.has-hover ? Theme.surface-hover : Theme.surface);
+
+    border-width: root.selected ? 1px : 0px;
+    border-color: Theme.accent;
+
+    touch := TouchArea {
+        clicked => { root.clicked(root.item.number); }
+    }
+
+    HorizontalLayout {
+        padding: 8px;
+        spacing: 12px;
+
+        // Landscape thumbnail with a neutral fallback.
+        Rectangle {
+            width: 128px;
+            height: 66px;
+            border-radius: Theme.radius-sm;
+            clip: true;
+            background: Theme.surface-sunken;
+
+            Image {
+                source: root.item.thumbnail;
+                width: 100%;
+                height: 100%;
+                image-fit: cover;
+            }
+
+            if !root.item.has-thumbnail: Text {
+                text: "EP " + root.item.number;
+                color: Theme.text-muted;
+                font-size: 15px;
+                font-weight: 700;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            if root.item.playing: Rectangle {
+                width: 100%;
+                height: 100%;
+                background: #000000aa;
+                Text {
+                    text: "▶";
+                    color: Theme.text-primary;
+                    font-size: 22px;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        VerticalLayout {
+            padding-top: 4px;
+            spacing: 4px;
+
+            Text {
+                text: "Episode " + root.item.number;
+                color: Theme.text-muted;
+                font-size: 12px;
+                font-weight: 600;
+            }
+
+            Text {
+                text: root.item.title;
+                color: Theme.text-primary;
+                font-size: 14px;
+                wrap: word-wrap;
+                max-lines: 1;
+                overflow: elide;
+            }
+
+            HorizontalLayout {
+                spacing: 10px;
+
+                if root.item.watched: Text {
+                    text: "✓ Watched";
+                    color: Theme.success;
+                    font-size: 12px;
+                }
+
+                if root.item.status != "": Text {
+                    text: root.item.status;
+                    color: Theme.accent;
+                    font-size: 12px;
+                }
+
+                if root.item.duration != "": Text {
+                    text: root.item.duration;
+                    color: Theme.text-muted;
+                    font-size: 12px;
+                }
+            }
+        }
+    }
+}
