@@ -7,7 +7,7 @@ Authoritative resume state. Keep this file current.
 - Rust repo: `D:\Projects\mutsukitube-folder\mutsukitube`
 - Branch: `feat/youtube-home-navigation` (local only — **not pushed**)
 - Base: `b7bf8c6` (Phase 5.5.1 tip on `fix/anime-ux-refinement`)
-- Code + docs commit: see `CHECKPOINTS.md`
+- Code + docs commit: `aca2b8d` on `feat/youtube-home-navigation`
 - Go repo: `D:\Projects\mutsukitube-folder\mutsukitube-anime-plugins` — untouched
 
 ## Objective

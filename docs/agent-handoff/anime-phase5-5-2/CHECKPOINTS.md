@@ -87,6 +87,6 @@ Statuses: `implemented` · `tested` (automated) · `verified` (observed in app) 
 
 - Wrote `STATE.md`, `CHECKPOINTS.md`, `TEST_RESULTS.md`,
   `NAVIGATION_DESIGN.md`, `YOUTUBE_HOME_DESIGN.md`, `MANUAL_TEST_PLAN.md`.
-- Local commit made.
+- Local commit `aca2b8d` made.
 - Visual/manual acceptance **NOT_RUN** (window never observed).
 
