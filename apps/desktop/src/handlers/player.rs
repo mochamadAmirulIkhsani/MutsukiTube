@@ -3,7 +3,7 @@ use slint::ComponentHandle;
 use mutsukitube_core::Video;
 use mutsukitube_storage::save_video;
 
-use crate::{AppWindow, app_context::AppContext, state::AppState};
+use crate::{AppWindow, app_context::AppContext, navigation, state::AppState};
 
 #[cfg(target_os = "windows")]
 use std::{cell::RefCell, rc::Rc};
@@ -49,6 +49,7 @@ fn register_open_video(
     let weak = ui.as_weak();
     let state = context.state.clone();
     let handle = context.handle.clone();
+    let context = context.clone();
 
     ui.on_open_video(move |video_id| {
         let video_id = video_id.to_string();
@@ -83,9 +84,16 @@ fn register_open_video(
         ui.set_player_paused(true);
         ui.set_playback_state("loading".into());
 
-        session.borrow_mut().request_video(video.id.clone());
+        // Remember where the video was opened from so Back returns here.
+        navigation::push_navigation(
+            &ui,
+            &context,
+            navigation::NavEntry::new(navigation::NavRoute::WatchPage {
+                video_id: video.id.clone(),
+            }),
+        );
 
-        ui.set_current_page("watch".into());
+        session.borrow_mut().request_video(video.id.clone());
 
         println!("[MutsukiTube] Autoplay queued: {}", video.id);
 

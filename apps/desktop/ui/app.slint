@@ -1,13 +1,33 @@
-
-import { SearchPage } from "pages/search-page.slint";
-import { WatchPage } from "pages/watch-page.slint";
-import { AnimePage } from "pages/anime-page.slint";
-import { AnimeCard } from "components/anime-poster-card.slint";
-import { EpisodeItem } from "components/episode-row.slint";
-import { VideoItem } from "components/video-card.slint";
-import { HistoryPage } from "pages/history-page.slint";
-import { SettingsPage } from "pages/settings-page.slint";
-import { LibraryPage } from "pages/library-page.slint";
+import {
+    HomePage,
+} from "pages/home-page.slint";
+import {
+    SearchPage,
+} from "pages/search-page.slint";
+import {
+    WatchPage,
+} from "pages/watch-page.slint";
+import {
+    AnimePage,
+} from "pages/anime-page.slint";
+import {
+    AnimeCard,
+} from "components/anime-poster-card.slint";
+import {
+    EpisodeItem,
+} from "components/episode-row.slint";
+import {
+    VideoItem,
+} from "components/video-card.slint";
+import {
+    HistoryPage,
+} from "pages/history-page.slint";
+import {
+    SettingsPage,
+} from "pages/settings-page.slint";
+import {
+    LibraryPage,
+} from "pages/library-page.slint";
 
 export component AppWindow inherits Window {
     title: "MutsukiTube";
@@ -18,7 +38,7 @@ export component AppWindow inherits Window {
     min-width: 800px;
     min-height: 600px;
 
-    in-out property <string> current-page: "search";
+    in-out property <string> current-page: "youtube-home";
     in-out property <[VideoItem]> videos;
 
     in-out property <bool> loading: false;
@@ -36,6 +56,7 @@ export component AppWindow inherits Window {
 
     in-out property <string> provider-mode: "auto";
     in-out property <string> settings-status: "";
+    in-out property <string> search-query: "";
 
     in-out property <[string]> anime-qualities: ["Auto"];
     in-out property <string> selected-anime-title: "";
@@ -88,11 +109,21 @@ export component AppWindow inherits Window {
 
     in-out property <bool> player-muted: false;
 
+    // YouTube Home (Phase 5.5.2)
+    in-out property <[VideoItem]> home-videos;
+    in-out property <[VideoItem]> home-continue-videos;
+    in-out property <[VideoItem]> home-favorite-videos;
+    in-out property <bool> home-loading: false;
+    in-out property <string> home-status-text: "";
+    in-out property <string> home-selected-topic: "";
+
     callback save-provider(string);
     callback search(string);
     callback open-video(string);
     callback play-video(string);
     callback load-more();
+    callback load-home();
+    callback load-home-topic(string);
 
     callback show-history();
     callback refresh-history();
@@ -127,6 +158,17 @@ export component AppWindow inherits Window {
 
     callback open-video-browser(string);
 
+    // Navigation stack (Phase 5.5.2)
+    callback nav-back();
+    callback nav-search(string);
+    callback nav-history();
+    callback nav-favorites();
+    callback nav-library-playlist(string);
+    callback nav-settings();
+    callback nav-anime();
+    callback nav-anime-details(string);
+    callback nav-home();
+
     changed current-page => {
         if (root.current-page == "watch") {
             shortcut-scope.focus();
@@ -150,15 +192,64 @@ export component AppWindow inherits Window {
     out property <bool> timeline-seek-active:
         watch-page.seeking;
 
+    if root.current-page == "youtube-home": HomePage {
+        videos: root.home-videos;
+        continue-videos: root.home-continue-videos;
+        favorite-videos: root.home-favorite-videos;
+        home-loading: root.home-loading;
+        home-status-text: root.home-status-text;
+        selected-topic: root.home-selected-topic;
+
+        search(query) => {
+            root.nav-search(query);
+        }
+
+        open-video(id) => {
+            root.open-video(id);
+        }
+
+        show-history => {
+            root.nav-history();
+        }
+
+        show-settings => {
+            root.nav-settings();
+        }
+
+        show-library => {
+            root.library-mode = "favorites";
+            root.selected-playlist = "";
+            root.nav-favorites();
+        }
+
+        show-favorites => {
+            root.nav-favorites();
+        }
+
+        show-anime => {
+            root.nav-anime();
+        }
+
+        select-topic(topic) => {
+            root.home-selected-topic = topic;
+            root.load-home-topic(topic);
+        }
+
+        load-more => {
+            root.load-more();
+        }
+    }
+
     if root.current-page == "search": SearchPage {
         videos: root.videos;
         loading: root.loading;
         loading-more: root.loading-more;
         has-more: root.has-more;
         status-text: root.status-text;
+        search-query: root.search-query;
 
         search(query) => {
-            root.search(query);
+            root.nav-search(query);
         }
 
         open-video(id) => {
@@ -170,25 +261,25 @@ export component AppWindow inherits Window {
         }
 
         show-history => {
-            root.current-page = "history";
-            root.show-history();
+            root.nav-history();
         }
 
         show-settings => {
-            root.settings-status = "";
-            root.current-page = "settings";
+            root.nav-settings();
         }
 
         show-library => {
             root.library-mode = "favorites";
             root.selected-playlist = "";
-            root.current-page = "library";
-            root.show-library();
+            root.nav-favorites();
         }
 
         show-anime => {
-            root.current-page = "anime";
-            root.show-anime();
+            root.nav-anime();
+        }
+
+        back => {
+            root.nav-back();
         }
     }
 
@@ -227,7 +318,7 @@ export component AppWindow inherits Window {
         }
 
         select-anime(key) => {
-            root.anime-select(key);
+            root.nav-anime-details(key);
         }
 
         select-episode(number) => {
@@ -251,7 +342,7 @@ export component AppWindow inherits Window {
         }
 
         back => {
-            root.anime-back();
+            root.nav-back();
         }
     }
 
@@ -328,10 +419,7 @@ export component AppWindow inherits Window {
             player-muted: root.player-muted;
 
             back => {
-                if (root.fullscreen-mode) {
-                    root.toggle-fullscreen();
-                }
-                root.current-page = "search";
+                root.nav-back();
             }
 
             play(id) => {
@@ -382,7 +470,7 @@ export component AppWindow inherits Window {
         status-text: root.history-status;
 
         back => {
-            root.current-page = "search";
+            root.nav-back();
         }
 
         open-video(id) => {
@@ -399,7 +487,7 @@ export component AppWindow inherits Window {
         status-text: root.settings-status;
 
         back => {
-            root.current-page = "search";
+            root.nav-back();
         }
 
         save-provider(mode) => {
@@ -418,7 +506,7 @@ export component AppWindow inherits Window {
         status-text: root.library-status;
 
         back => {
-            root.current-page = "search";
+            root.nav-back();
         }
 
         open-video(id) => {
@@ -426,14 +514,13 @@ export component AppWindow inherits Window {
         }
 
         show-favorites => {
-            root.library-mode = "favorites";
-            root.refresh-library();
+            root.nav-favorites();
         }
 
         select-playlist(name) => {
             root.library-mode = "playlist";
             root.selected-playlist = name;
-            root.select-playlist(name);
+            root.nav-library-playlist(name);
         }
 
         create-playlist(name) => {

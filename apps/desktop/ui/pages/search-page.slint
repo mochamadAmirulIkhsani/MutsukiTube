@@ -20,8 +20,10 @@ export component SearchPage inherits Rectangle {
     in property <bool> loading-more: false;
     in property <bool> has-more: false;
     in property <string> status-text: "";
+    in-out property <string> search-query: "";
 
     callback search(string);
+    callback back();
     callback open-video(string);
     callback load-more();
     callback show-history();
@@ -87,6 +89,7 @@ export component SearchPage inherits Rectangle {
 
             search-box := LineEdit {
                 placeholder-text: "Search YouTube...";
+                text <=> root.search-query;
 
                 accepted => {
                     root.search(search-box.text);

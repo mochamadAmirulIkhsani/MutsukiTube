@@ -1,5 +1,6 @@
 pub mod anime;
 pub mod history;
+pub mod home;
 pub mod library;
 pub mod player;
 

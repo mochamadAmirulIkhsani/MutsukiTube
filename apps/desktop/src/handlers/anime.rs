@@ -8,7 +8,9 @@ use mutsukitube_storage as storage;
 
 use slint::{ComponentHandle, Model, ModelRc};
 
-use crate::{AnimeCard, AppWindow, EpisodeItem, app_context::AppContext, state::AnimePlaying};
+use crate::{
+    AnimeCard, AppWindow, EpisodeItem, app_context::AppContext, navigation, state::AnimePlaying,
+};
 
 const SHELF_LIMIT: usize = 24;
 
@@ -194,36 +196,10 @@ fn build_episode_items(
 
 fn register_home(ui: &AppWindow, context: &AppContext) {
     let weak = ui.as_weak();
-    let weak_back = ui.as_weak();
     let context = context.clone();
-    let context_back = context.clone();
 
     ui.on_show_anime(move || {
         refresh_home(weak.clone(), context.clone(), None);
-    });
-
-    ui.on_anime_back(move || {
-        let view = context_back
-            .state
-            .lock()
-            .map(|s| s.anime_view.clone())
-            .unwrap_or_else(|_| "home".to_string());
-
-        if view == "details" {
-            if let Some(ui) = weak_back.upgrade() {
-                ui.set_anime_view("home".into());
-                ui.set_selected_anime_title("".into());
-            }
-
-            if let Ok(mut state) = context_back.state.lock() {
-                state.anime_view = "home".to_string();
-                state.anime_selected_episode_number = -1;
-            }
-
-            refresh_home(weak_back.clone(), context_back.clone(), None);
-        } else if let Some(ui) = weak_back.upgrade() {
-            ui.set_current_page("search".into());
-        }
     });
 }
 
@@ -534,6 +510,13 @@ fn register_select(ui: &AppWindow, context: &AppContext) {
             ui.set_anime_selected_episode_number(-1);
             ui.set_anime_resume_label("".into());
             ui.set_selected_anime_title(anime.title.clone().into());
+
+            // Remember the anime origin so Back from the player returns here.
+            navigation::push_navigation(
+                &ui,
+                &context,
+                navigation::NavEntry::new(navigation::NavRoute::AnimeDetails { key: key.clone() }),
+            );
         }
 
         let provider_id = anime.provider_id.clone();
@@ -866,6 +849,23 @@ fn register_play_windows(
         session_ref.pending_anime_resume = resume.map(|seconds| seconds as f64);
 
         if let Some(ui) = weak_for_ready.upgrade() {
+            // Remember the anime origin so Back returns to Anime Details.
+            let watch_identity = context_for_ready
+                .state
+                .lock()
+                .ok()
+                .and_then(|state| state.anime_pending_playing.clone())
+                .map(|playing| playing.anime_url)
+                .unwrap_or_else(|| "anime".into());
+
+            navigation::push_navigation(
+                &ui,
+                &context_for_ready,
+                navigation::NavEntry::new(navigation::NavRoute::WatchPage {
+                    video_id: watch_identity,
+                }),
+            );
+
             ui.set_current_page("watch".into());
         }
     });

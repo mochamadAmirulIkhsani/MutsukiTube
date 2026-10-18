@@ -77,4 +77,15 @@ pub struct AppState {
 
     /// Last unix second we persisted playback progress.
     pub anime_last_progress_save: u64,
+
+    // ---- Navigation stack (Phase 5.5.2) --------------------------------------
+    /// Back navigation history. The top entry is the currently shown screen;
+    /// popping it restores the screen the user came from.
+    pub nav_stack: Vec<crate::navigation::NavEntry>,
+
+    // ---- YouTube Home feed (Phase 5.5.2) -------------------------------------
+    pub home_topic: String,
+    pub home_loading: bool,
+    pub home_status: String,
+    pub home_generation: u64,
 }

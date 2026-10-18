@@ -13,6 +13,7 @@ pub enum ThumbnailTarget {
     Search,
     History,
     Library,
+    Home,
 }
 
 fn get_model(ui: &AppWindow, target: ThumbnailTarget) -> ModelRc<VideoItem> {
@@ -20,6 +21,7 @@ fn get_model(ui: &AppWindow, target: ThumbnailTarget) -> ModelRc<VideoItem> {
         ThumbnailTarget::Search => ui.get_videos(),
         ThumbnailTarget::History => ui.get_history_videos(),
         ThumbnailTarget::Library => ui.get_library_videos(),
+        ThumbnailTarget::Home => ui.get_home_videos(),
     }
 }
 
@@ -77,6 +79,8 @@ pub fn queue_thumbnails(
                                 ThumbnailTarget::History => s.history_generation == generation,
 
                                 ThumbnailTarget::Library => s.library_generation == generation,
+
+                                ThumbnailTarget::Home => s.home_generation == generation,
                             })
                             .unwrap_or(false);
 

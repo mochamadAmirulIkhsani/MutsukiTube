@@ -1,6 +1,7 @@
 mod app_context;
 mod handlers;
 mod native_window;
+mod navigation;
 mod state;
 mod thumbnail;
 mod thumbnail_ui;
@@ -113,6 +114,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     let state = Arc::new(Mutex::new(AppState {
         provider_mode: saved_provider.clone(),
+        nav_stack: vec![navigation::NavEntry::new(navigation::NavRoute::YouTubeHome)],
         ..AppState::default()
     }));
 
@@ -163,6 +165,7 @@ fn main() -> Result<(), slint::PlatformError> {
     };
 
     ui.set_provider_mode(saved_provider.into());
+    ui.set_current_page("youtube-home".into());
 
     let video_model = Rc::new(VecModel::<VideoItem>::default());
 
@@ -195,12 +198,223 @@ fn main() -> Result<(), slint::PlatformError> {
     handlers::settings::register(&ui, &context);
     handlers::library::register(&ui, &context);
     handlers::search::register(&ui, &context);
+    handlers::home::register(&ui, &context);
 
     #[cfg(target_os = "windows")]
     handlers::anime::register(&ui, &context, native_session.clone());
 
     #[cfg(not(target_os = "windows"))]
     handlers::anime::register(&ui, &context);
+
+    {
+        let weak = ui.as_weak();
+        let context = context.clone();
+
+        ui.on_nav_back(move || {
+            let Some(ui) = weak.upgrade() else {
+                return;
+            };
+
+            let _ = navigation::navigate_back(&ui, &context);
+        });
+    }
+
+    {
+        let weak = ui.as_weak();
+        let context = context.clone();
+
+        ui.on_nav_search(move |query| {
+            let query = query.trim().to_string();
+
+            if query.is_empty() {
+                return;
+            }
+
+            let Some(ui) = weak.upgrade() else {
+                return;
+            };
+
+            navigation::push_navigation(
+                &ui,
+                &context,
+                navigation::NavEntry::new(navigation::NavRoute::YouTubeSearch {
+                    query: query.clone(),
+                }),
+            );
+
+            let _ = ui.invoke_search(query.into());
+        });
+    }
+
+    {
+        let weak = ui.as_weak();
+        let context = context.clone();
+
+        ui.on_nav_history(move || {
+            let Some(ui) = weak.upgrade() else {
+                return;
+            };
+
+            navigation::push_navigation(
+                &ui,
+                &context,
+                navigation::NavEntry::new(navigation::NavRoute::YouTubeHistory),
+            );
+        });
+    }
+
+    {
+        let weak = ui.as_weak();
+        let context = context.clone();
+
+        ui.on_nav_favorites(move || {
+            let Some(ui) = weak.upgrade() else {
+                return;
+            };
+
+            navigation::push_navigation(
+                &ui,
+                &context,
+                navigation::NavEntry::new(navigation::NavRoute::YouTubeFavorites),
+            );
+        });
+    }
+
+    {
+        let weak = ui.as_weak();
+        let context = context.clone();
+
+        ui.on_nav_library_playlist(move |name| {
+            let name = name.to_string();
+
+            let Some(ui) = weak.upgrade() else {
+                return;
+            };
+
+            navigation::push_navigation(
+                &ui,
+                &context,
+                navigation::NavEntry::new(navigation::NavRoute::YouTubePlaylist { name }),
+            );
+        });
+    }
+
+    {
+        let weak = ui.as_weak();
+        let context = context.clone();
+
+        ui.on_nav_settings(move || {
+            let Some(ui) = weak.upgrade() else {
+                return;
+            };
+
+            navigation::push_navigation(
+                &ui,
+                &context,
+                navigation::NavEntry::new(navigation::NavRoute::Settings),
+            );
+        });
+    }
+
+    {
+        let weak = ui.as_weak();
+        let context = context.clone();
+
+        ui.on_nav_anime(move || {
+            let Some(ui) = weak.upgrade() else {
+                return;
+            };
+
+            navigation::push_navigation(
+                &ui,
+                &context,
+                navigation::NavEntry::new(navigation::NavRoute::AnimeHome),
+            );
+
+            let _ = ui.invoke_show_anime();
+        });
+    }
+
+    {
+        let weak = ui.as_weak();
+        let context = context.clone();
+
+        ui.on_nav_anime_details(move |key| {
+            let key = key.to_string();
+
+            let Some(ui) = weak.upgrade() else {
+                return;
+            };
+
+            navigation::push_navigation(
+                &ui,
+                &context,
+                navigation::NavEntry::new(navigation::NavRoute::AnimeDetails { key: key.clone() }),
+            );
+
+            let _ = ui.invoke_anime_select(key.into());
+        });
+    }
+
+    {
+        let weak = ui.as_weak();
+        let context = context.clone();
+
+        ui.on_nav_home(move || {
+            let Some(ui) = weak.upgrade() else {
+                return;
+            };
+
+            navigation::push_navigation(
+                &ui,
+                &context,
+                navigation::NavEntry::new(navigation::NavRoute::YouTubeHome),
+            );
+        });
+    }
+
+    {
+        let weak = ui.as_weak();
+        let context = context.clone();
+
+        ui.on_load_home(move || {
+            let Some(ui) = weak.upgrade() else {
+                return;
+            };
+
+            navigation::push_navigation(
+                &ui,
+                &context,
+                navigation::NavEntry::new(navigation::NavRoute::YouTubeHome),
+            );
+        });
+    }
+
+    {
+        let weak = ui.as_weak();
+        let context = context.clone();
+
+        ui.on_load_home_topic(move |topic| {
+            let topic = topic.to_string();
+
+            let Some(ui) = weak.upgrade() else {
+                return;
+            };
+
+            navigation::push_navigation(
+                &ui,
+                &context,
+                navigation::NavEntry::new(navigation::NavRoute::YouTubeSearch {
+                    query: topic.clone(),
+                }),
+            );
+
+            let _ = ui.invoke_search(topic.into());
+        });
+    }
+
+    // Kick off the YouTube Home feed on startup.
+    let _ = ui.invoke_load_home();
 
     #[cfg(target_os = "windows")]
     {
