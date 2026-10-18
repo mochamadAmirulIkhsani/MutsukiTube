@@ -338,7 +338,9 @@ fn refresh_home(weak: slint::Weak<AppWindow>, context: AppContext, _status: Opti
     if let Ok(mut state) = context.state.lock() {
         state.anime_view = "home".to_string();
         state.anime_cards.extend(cards_by_key);
-        state.anime_resume.extend(resume_map);
+        // Continue Watching is authoritative: rebuild the resume map so entries
+        // for now-completed episodes do not linger.
+        state.anime_resume = resume_map;
     }
 
     ui.set_anime_view("home".into());
@@ -585,6 +587,15 @@ fn register_select(ui: &AppWindow, context: &AppContext) {
                     ),
                     None => (-1, 0, String::new()),
                 };
+
+                // Make resume work even when details were opened straight from
+                // search, without a prior home refresh.
+                if let Some(record) = resume {
+                    app_state.anime_resume.insert(
+                        storage::anime_key(&provider_id, &anime.url),
+                        (record.episode_number, record.position_secs),
+                    );
+                }
 
                 let selected_number = if resume_number > 0 { resume_number } else { -1 };
 

@@ -52,8 +52,10 @@
 
 - Header (64px, sunken): Back, `Anime` title, search field, Search button.
 - Status bar (shown only when loading or status text exists).
-- Three sibling views toggled with `visible:` (Slint layouts skip invisible
-  children): `setup`, `details`, `home`.
+- Three sibling views, each behind a mutually-exclusive `if root.view == "…"`
+  conditional with `vertical-stretch: 1`, so exactly one is in the layout
+  (`setup`, `details`, `home`). Slint's `visible` property does not remove an
+  element from layout, so conditionals are used instead.
   - `setup`: onboarding panel + Install Anime Plugins.
   - `details`: hero (poster + title + badge + episode count + Play/Resume +
     Favorite + optional quality) then episode rows.

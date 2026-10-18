@@ -138,8 +138,9 @@ export component AnimePage inherits Rectangle {
         }
 
         // ---------------------------------------------------------------- content
-        Rectangle {
-            visible: root.view == "setup";
+        // Exactly one view is present in the layout at a time.
+        if root.view == "setup": Rectangle {
+            vertical-stretch: 1;
             background: Theme.bg;
 
             VerticalLayout {
@@ -187,8 +188,8 @@ export component AnimePage inherits Rectangle {
             }
         }
 
-        ScrollView {
-            visible: root.view == "details";
+        if root.view == "details": ScrollView {
+            vertical-stretch: 1;
             VerticalLayout {
                 spacing: 22px;
                 padding-bottom: 30px;
@@ -323,8 +324,8 @@ export component AnimePage inherits Rectangle {
             }
         }
 
-        ScrollView {
-            visible: root.view == "home";
+        if root.view == "home": ScrollView {
+            vertical-stretch: 1;
             VerticalLayout {
                 padding: 22px;
                 spacing: 26px;
