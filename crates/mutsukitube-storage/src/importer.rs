@@ -78,8 +78,11 @@ pub fn import_subscriptions(channels: &[SubscribedChannel]) -> rusqlite::Result<
     let mut count = 0;
     for channel in channels {
         let changed = tx.execute(
-            "INSERT OR REPLACE INTO subscriptions (channel_id, channel_url, channel_title)
-             VALUES (?1, ?2, ?3)",
+            "INSERT INTO subscriptions (channel_id, channel_url, channel_title)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT(channel_id) DO UPDATE SET
+                 channel_url = excluded.channel_url,
+                 channel_title = excluded.channel_title",
             (&channel.id, &channel.url, &channel.title),
         )?;
         count += changed;
@@ -173,8 +176,12 @@ pub fn add_subscription(
 ) -> rusqlite::Result<()> {
     let connection = open_connection()?;
     connection.execute(
-        "INSERT OR REPLACE INTO subscriptions (channel_id, channel_url, channel_title, avatar_url)
-         VALUES (?1, ?2, ?3, ?4)",
+        "INSERT INTO subscriptions (channel_id, channel_url, channel_title, avatar_url)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(channel_id) DO UPDATE SET
+             channel_url = excluded.channel_url,
+             channel_title = excluded.channel_title,
+             avatar_url = COALESCE(excluded.avatar_url, subscriptions.avatar_url)",
         (id, url, title, avatar_url),
     )?;
     Ok(())
@@ -220,6 +227,65 @@ UC1234567890123456789012,http://www.youtube.com/channel/UC1234567890123456789012
         let channels = parse_subscriptions_csv(csv);
         assert_eq!(channels.len(), 1);
         assert_eq!(channels[0].title, "Tech, News & Reviews");
+    }
+
+    #[test]
+    fn import_subscriptions_appends_and_preserves_cached_avatars() {
+        let _ = clear_subscriptions();
+
+        // First import: channels A and B
+        let batch_1 = vec![
+            SubscribedChannel {
+                id: "UC_A".into(),
+                url: "http://youtube.com/channel/UC_A".into(),
+                title: "Channel A".into(),
+                avatar_url: None,
+            },
+            SubscribedChannel {
+                id: "UC_B".into(),
+                url: "http://youtube.com/channel/UC_B".into(),
+                title: "Channel B".into(),
+                avatar_url: None,
+            },
+        ];
+        let imported = import_subscriptions(&batch_1).unwrap();
+        assert_eq!(imported, 2);
+        assert_eq!(get_subscriptions_count().unwrap(), 2);
+
+        // Simulate avatar cache on Channel A
+        update_channel_avatar("UC_A", "https://example.com/avatar_a.jpg").unwrap();
+
+        // Second import: Channel B and new Channel C
+        let batch_2 = vec![
+            SubscribedChannel {
+                id: "UC_B".into(),
+                url: "http://youtube.com/channel/UC_B".into(),
+                title: "Channel B (Updated Title)".into(),
+                avatar_url: None,
+            },
+            SubscribedChannel {
+                id: "UC_C".into(),
+                url: "http://youtube.com/channel/UC_C".into(),
+                title: "Channel C".into(),
+                avatar_url: None,
+            },
+        ];
+        import_subscriptions(&batch_2).unwrap();
+
+        // Database should now have all 3 channels (A, B, C)
+        assert_eq!(get_subscriptions_count().unwrap(), 3);
+
+        let all = get_subscriptions().unwrap();
+        let ch_a = all.iter().find(|c| c.id == "UC_A").unwrap();
+        assert_eq!(ch_a.avatar_url.as_deref(), Some("https://example.com/avatar_a.jpg"));
+
+        let ch_b = all.iter().find(|c| c.id == "UC_B").unwrap();
+        assert_eq!(ch_b.title, "Channel B (Updated Title)");
+
+        let ch_c = all.iter().find(|c| c.id == "UC_C").unwrap();
+        assert_eq!(ch_c.title, "Channel C");
+
+        let _ = clear_subscriptions();
     }
 }
 
