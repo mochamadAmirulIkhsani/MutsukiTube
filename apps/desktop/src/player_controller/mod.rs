@@ -32,6 +32,7 @@ impl PlaybackState {
 pub struct EmbeddedPlayerController {
     player: Option<EmbeddedMpvPlayer>,
     current_source: Option<String>,
+    current_headers: Vec<(String, String)>,
     was_on_watch_page: bool,
     playback_state: PlaybackState,
     recovery_attempts: u32,
@@ -52,6 +53,7 @@ impl EmbeddedPlayerController {
         Self {
             player: None,
             current_source: None,
+            current_headers: Vec::new(),
             was_on_watch_page: false,
             playback_state: PlaybackState::Idle,
             recovery_attempts: 0,
@@ -69,6 +71,35 @@ impl EmbeddedPlayerController {
 
     pub fn playback_state(&self) -> PlaybackState {
         self.playback_state
+    }
+
+    #[allow(dead_code)]
+    pub fn current_source(&self) -> Option<&str> {
+        self.current_source.as_deref()
+    }
+
+    #[allow(dead_code)]
+    pub fn current_headers(&self) -> &[(String, String)] {
+        &self.current_headers
+    }
+
+    #[cfg(test)]
+    pub fn initialize_headless(&mut self) -> Result<(), String> {
+        if self.player.is_some() {
+            return Ok(());
+        }
+
+        match EmbeddedMpvPlayer::new_headless() {
+            Ok(player) => {
+                self.player = Some(player);
+                self.playback_state = PlaybackState::Idle;
+                Ok(())
+            }
+            Err(error) => {
+                self.playback_state = PlaybackState::Error;
+                Err(error)
+            }
+        }
     }
 
     pub fn initialize(&mut self, hwnd: usize) -> Result<(), String> {
@@ -117,6 +148,7 @@ impl EmbeddedPlayerController {
 
         self.playback_state = PlaybackState::Loading;
         self.current_source = None;
+        self.current_headers.clear();
 
         // New media session: drop any events still queued for the outgoing file
         // (e.g. a late `FileLoaded`) and mark the timeline empty until the
@@ -131,6 +163,7 @@ impl EmbeddedPlayerController {
         }
 
         self.current_source = Some(source.to_string());
+        self.current_headers = headers.to_vec();
 
         println!("[MutsukiTube] Loading source: {source}");
 
@@ -167,7 +200,6 @@ impl EmbeddedPlayerController {
             }
         }
 
-        self.current_source = None;
         self.playback_state = PlaybackState::Stopped;
         self.media_loaded = false;
 
@@ -280,7 +312,10 @@ impl EmbeddedPlayerController {
 
                 EmbeddedPlaybackEvent::EndOfFile => {
                     if self.current_source.is_some()
-                        && self.playback_state != PlaybackState::Loading
+                        && !matches!(
+                            self.playback_state,
+                            PlaybackState::Loading | PlaybackState::Stopped
+                        )
                     {
                         self.playback_state = PlaybackState::Finished;
 
@@ -338,9 +373,10 @@ impl EmbeddedPlayerController {
 
     pub fn replay(&mut self) -> Result<(), String> {
         let source = self.current_source.clone().ok_or("No media loaded")?;
+        let headers = self.current_headers.clone();
 
         self.reloading_for_recovery = true;
-        let result = self.load_video(&source);
+        let result = self.load_media(&source, &headers);
         self.reloading_for_recovery = false;
 
         result?;
@@ -363,6 +399,7 @@ impl EmbeddedPlayerController {
         self.player.take();
 
         self.current_source = None;
+        self.current_headers.clear();
         self.was_on_watch_page = false;
         self.playback_state = PlaybackState::Idle;
         self.recovery_attempts = 0;
@@ -376,5 +413,74 @@ impl EmbeddedPlayerController {
 impl Default for EmbeddedPlayerController {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stop_preserves_current_source_and_headers() {
+        let mut controller = EmbeddedPlayerController::new();
+        controller.initialize_headless().unwrap();
+
+        let source = "https://example.com/video.mp4";
+        let headers = vec![("Referer".to_string(), "https://example.com/".to_string())];
+        controller.load_media(source, &headers).unwrap();
+
+        assert_eq!(controller.current_source(), Some(source));
+        assert_eq!(controller.current_headers(), headers.as_slice());
+
+        controller.stop().unwrap();
+
+        assert_eq!(controller.playback_state(), PlaybackState::Stopped);
+        assert!(!controller.media_loaded());
+        // Source and headers must be preserved across stop
+        assert_eq!(controller.current_source(), Some(source));
+        assert_eq!(controller.current_headers(), headers.as_slice());
+    }
+
+    #[test]
+    fn replay_after_stop_reloads_media_and_starts_playback() {
+        let mut controller = EmbeddedPlayerController::new();
+        controller.initialize_headless().unwrap();
+
+        let source = "https://example.com/video.mp4";
+        let headers = vec![("Referer".to_string(), "https://example.com/".to_string())];
+        controller.load_media(source, &headers).unwrap();
+        controller.stop().unwrap();
+
+        assert_eq!(controller.playback_state(), PlaybackState::Stopped);
+
+        // Replay should succeed and reload media
+        let res = controller.replay();
+        assert!(res.is_ok(), "replay after stop failed: {:?}", res);
+        assert_eq!(controller.current_source(), Some(source));
+        assert_eq!(controller.current_headers(), headers.as_slice());
+    }
+
+    #[test]
+    fn replay_without_media_fails() {
+        let mut controller = EmbeddedPlayerController::new();
+        controller.initialize_headless().unwrap();
+
+        let res = controller.replay();
+        assert_eq!(res, Err("No media loaded".to_string()));
+    }
+
+    #[test]
+    fn shutdown_clears_source_and_headers() {
+        let mut controller = EmbeddedPlayerController::new();
+        controller.initialize_headless().unwrap();
+
+        let source = "https://example.com/video.mp4";
+        let headers = vec![("Referer".to_string(), "https://example.com/".to_string())];
+        controller.load_media(source, &headers).unwrap();
+
+        controller.shutdown();
+        assert_eq!(controller.current_source(), None);
+        assert!(controller.current_headers().is_empty());
+        assert_eq!(controller.playback_state(), PlaybackState::Idle);
     }
 }

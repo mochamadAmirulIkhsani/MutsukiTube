@@ -189,8 +189,7 @@ export component AppWindow inherits Window {
 
     /// True while the user is interacting with the seek slider. Read by Rust so
     /// live timeline updates do not yank the thumb mid-drag.
-    out property <bool> timeline-seek-active:
-        watch-page.seeking;
+    in-out property <bool> timeline-seek-active: false;
 
     if root.current-page == "youtube-home": HomePage {
         videos: root.home-videos;
@@ -409,7 +408,8 @@ export component AppWindow inherits Window {
             player-ready: root.player-ready;
             player-paused: root.player-paused;
 
-            playback-position: root.playback-position;
+            playback-position <=> root.playback-position;
+            seeking <=> root.timeline-seek-active;
             playback-duration: root.playback-duration;
             playback-volume: root.playback-volume;
             playback-state: root.playback-state;

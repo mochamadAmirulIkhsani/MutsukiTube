@@ -536,7 +536,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     video_loading.set(true);
                 } else if video_loading.get() {
                     match playback_state.as_str() {
-                        "playing" | "paused" | "finished" | "error" => {
+                        "playing" | "paused" | "finished" | "stopped" | "error" => {
                             video_loading.set(false);
                         }
                         _ => {}
