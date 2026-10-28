@@ -169,6 +169,12 @@ export component AppWindow inherits Window {
     in-out property <string> subscriptions-filter-query: "";
     in-out property <string> subscriptions-selected-channel-id: "";
     in-out property <string> subscriptions-selected-channel-title: "";
+    in-out property <int> subscriptions-current-page: 1;
+    in-out property <int> subscriptions-total-pages: 1;
+    in-out property <int> subscriptions-total-count: 0;
+    in-out property <int> subscriptions-page-start: 0;
+    in-out property <int> subscriptions-page-end: 0;
+    in-out property <string> subscriptions-sort: "a-z";
 
     callback save-provider(string);
     callback select-import-file();
@@ -177,6 +183,11 @@ export component AppWindow inherits Window {
     callback nav-subscriptions();
     callback load-subscriptions();
     callback filter-subscriptions(string);
+    callback subscriptions-next-page();
+    callback subscriptions-prev-page();
+    callback subscriptions-first-page();
+    callback subscriptions-last-page();
+    callback subscriptions-change-sort(string);
     callback select-subscription-channel(string, string);
     callback clear-selected-subscription-channel();
     callback remove-subscription-channel(string);
@@ -417,6 +428,13 @@ export component AppWindow inherits Window {
                 selected-channel-id: root.subscriptions-selected-channel-id;
                 selected-channel-title: root.subscriptions-selected-channel-title;
 
+                current-page: root.subscriptions-current-page;
+                total-pages: root.subscriptions-total-pages;
+                total-count: root.subscriptions-total-count;
+                page-start: root.subscriptions-page-start;
+                page-end: root.subscriptions-page-end;
+                selected-sort: root.subscriptions-sort;
+
                 select-channel(id, title) => {
                     root.select-subscription-channel(id, title);
                 }
@@ -443,6 +461,26 @@ export component AppWindow inherits Window {
 
                 filter-changed(query) => {
                     root.filter-subscriptions(query);
+                }
+
+                next-page => {
+                    root.subscriptions-next-page();
+                }
+
+                prev-page => {
+                    root.subscriptions-prev-page();
+                }
+
+                first-page => {
+                    root.subscriptions-first-page();
+                }
+
+                last-page => {
+                    root.subscriptions-last-page();
+                }
+
+                sort-changed(sort) => {
+                    root.subscriptions-change-sort(sort);
                 }
             }
 

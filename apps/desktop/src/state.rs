@@ -106,6 +106,8 @@ pub struct AppState {
     pub subscriptions_selected_channel_id: Option<String>,
     pub subscriptions_selected_channel_title: Option<String>,
     pub subscriptions_filter_query: String,
+    pub subscriptions_current_page: usize,
+    pub subscriptions_sort: String,
     pub subscriptions_loading: bool,
     pub subscriptions_status: String,
     pub subscriptions_generation: u64,

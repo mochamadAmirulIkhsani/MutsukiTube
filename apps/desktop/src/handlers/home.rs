@@ -163,8 +163,10 @@ fn load_home(weak: slint::Weak<AppWindow>, context: AppContext) {
                 context.state.clone(),
                 handle.clone(),
             );
+            let home_subs: Vec<mutsukitube_storage::SubscribedChannel> =
+                subscriptions.into_iter().take(20).collect();
             queue_channel_avatars(
-                subscriptions,
+                home_subs,
                 AvatarTarget::Home,
                 generation,
                 ui.as_weak(),

@@ -358,4 +358,79 @@ UCsBjURrPoezykLs9EqgamOA,http://www.youtube.com/channel/UCsBjURrPoezykLs9EqgamOA
         assert_eq!(ui_item.initials, "TC");
         assert!(!ui_item.has_avatar);
     }
+
+    #[test]
+    fn verify_subscriptions_filtering_and_sorting() {
+        use crate::handlers::subscriptions::get_filtered_and_sorted;
+        use mutsukitube_storage::SubscribedChannel;
+
+        let channels = vec![
+            SubscribedChannel {
+                id: "1".into(),
+                url: "".into(),
+                title: "Zebra Tech".into(),
+                avatar_url: None,
+            },
+            SubscribedChannel {
+                id: "2".into(),
+                url: "".into(),
+                title: "Alpha Gaming".into(),
+                avatar_url: Some("https://example.com/avatar.jpg".into()),
+            },
+            SubscribedChannel {
+                id: "3".into(),
+                url: "".into(),
+                title: "Beta Tutorials".into(),
+                avatar_url: None,
+            },
+        ];
+
+        // Default sort: A-Z
+        let sorted_az = get_filtered_and_sorted(&channels, "", "a-z");
+        assert_eq!(sorted_az[0].title, "Alpha Gaming");
+        assert_eq!(sorted_az[1].title, "Beta Tutorials");
+        assert_eq!(sorted_az[2].title, "Zebra Tech");
+
+        // Sort: Z-A
+        let sorted_za = get_filtered_and_sorted(&channels, "", "z-a");
+        assert_eq!(sorted_za[0].title, "Zebra Tech");
+        assert_eq!(sorted_za[1].title, "Beta Tutorials");
+        assert_eq!(sorted_za[2].title, "Alpha Gaming");
+
+        // Filter by search query (case-insensitive)
+        let filtered = get_filtered_and_sorted(&channels, "tech", "a-z");
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].title, "Zebra Tech");
+
+        // Filter: with-avatar
+        let with_avatar = get_filtered_and_sorted(&channels, "", "with-avatar");
+        assert_eq!(with_avatar.len(), 1);
+        assert_eq!(with_avatar[0].title, "Alpha Gaming");
+    }
+
+    #[test]
+    fn verify_subscriptions_pagination_calculations() {
+        use crate::handlers::subscriptions::CHANNELS_PER_PAGE;
+
+        let total_count = 50;
+        let total_pages = (total_count + CHANNELS_PER_PAGE - 1) / CHANNELS_PER_PAGE;
+        assert_eq!(total_pages, 3); // 24 + 24 + 2 = 50
+
+        // Page 1
+        let page = 1;
+        let start_index = (page - 1) * CHANNELS_PER_PAGE;
+        let count_on_page = CHANNELS_PER_PAGE.min(total_count - start_index);
+        let end_index = start_index + count_on_page;
+        assert_eq!(start_index, 0);
+        assert_eq!(end_index, 24);
+
+        // Page 3
+        let page = 3;
+        let start_index = (page - 1) * CHANNELS_PER_PAGE;
+        let count_on_page = CHANNELS_PER_PAGE.min(total_count - start_index);
+        let end_index = start_index + count_on_page;
+        assert_eq!(start_index, 48);
+        assert_eq!(end_index, 50);
+        assert_eq!(count_on_page, 2);
+    }
 }

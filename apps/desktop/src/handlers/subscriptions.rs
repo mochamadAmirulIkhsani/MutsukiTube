@@ -16,6 +16,7 @@ use crate::{
     ui_models::{channel_to_ui, video_to_ui},
 };
 
+pub const CHANNELS_PER_PAGE: usize = 24;
 const CHANNEL_VIDEOS_LIMIT: usize = 36;
 
 fn replace_subscriptions_channels(ui: &AppWindow, items: Vec<ChannelItem>) {
@@ -38,6 +39,131 @@ fn replace_channel_videos(ui: &AppWindow, items: Vec<VideoItem>) {
     }
 }
 
+pub fn get_filtered_and_sorted(
+    channels: &[SubscribedChannel],
+    query: &str,
+    sort: &str,
+) -> Vec<SubscribedChannel> {
+    let mut list: Vec<SubscribedChannel> = if query.trim().is_empty() {
+        channels.to_vec()
+    } else {
+        let q = query.to_lowercase();
+        channels
+            .iter()
+            .filter(|c| c.title.to_lowercase().contains(&q))
+            .cloned()
+            .collect()
+    };
+
+    match sort {
+        "z-a" => {
+            list.sort_by(|a, b| b.title.to_lowercase().cmp(&a.title.to_lowercase()));
+        }
+        "with-avatar" => {
+            list.retain(|c| c.avatar_url.as_ref().map(|u| !u.is_empty()).unwrap_or(false));
+            list.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+        }
+        _ => {
+            // "a-z" default
+            list.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+        }
+    }
+
+    list
+}
+
+pub fn refresh_subscriptions_view(
+    weak: slint::Weak<AppWindow>,
+    context: &AppContext,
+    generation: u64,
+) {
+    let (all_channels, query, sort, current_page) = {
+        let Ok(mut state) = context.state.lock() else {
+            return;
+        };
+        let page = if state.subscriptions_current_page == 0 {
+            state.subscriptions_current_page = 1;
+            1
+        } else {
+            state.subscriptions_current_page
+        };
+        let sort = if state.subscriptions_sort.is_empty() {
+            state.subscriptions_sort = "a-z".to_string();
+            "a-z".to_string()
+        } else {
+            state.subscriptions_sort.clone()
+        };
+        (
+            state.subscriptions_all.clone(),
+            state.subscriptions_filter_query.clone(),
+            sort,
+            page,
+        )
+    };
+
+    let filtered = get_filtered_and_sorted(&all_channels, &query, &sort);
+    let total_count = filtered.len();
+    let total_pages = if total_count == 0 {
+        1
+    } else {
+        (total_count + CHANNELS_PER_PAGE - 1) / CHANNELS_PER_PAGE
+    };
+    let page = current_page.clamp(1, total_pages);
+
+    if let Ok(mut state) = context.state.lock() {
+        state.subscriptions_current_page = page;
+        state.subscriptions_filtered = filtered.clone();
+    }
+
+    let start_index = (page - 1) * CHANNELS_PER_PAGE;
+    let page_channels: Vec<SubscribedChannel> = filtered
+        .into_iter()
+        .skip(start_index)
+        .take(CHANNELS_PER_PAGE)
+        .collect();
+    let end_index = start_index + page_channels.len();
+
+    let weak_clone = weak.clone();
+    let context_clone = context.clone();
+
+    let _ = weak.upgrade_in_event_loop(move |ui| {
+        let is_current = context_clone
+            .state
+            .lock()
+            .map(|state| state.subscriptions_generation == generation)
+            .unwrap_or(false);
+
+        if !is_current {
+            return;
+        }
+
+        let items: Vec<ChannelItem> = page_channels
+            .iter()
+            .map(|c| channel_to_ui(c, slint::Image::default()))
+            .collect();
+
+        ui.set_subscriptions_loading(false);
+        ui.set_subscriptions_count(all_channels.len() as i32);
+        ui.set_subscriptions_current_page(page as i32);
+        ui.set_subscriptions_total_pages(total_pages as i32);
+        ui.set_subscriptions_total_count(total_count as i32);
+        ui.set_subscriptions_page_start(if total_count == 0 { 0 } else { (start_index + 1) as i32 });
+        ui.set_subscriptions_page_end(end_index as i32);
+        ui.set_subscriptions_sort(sort.into());
+        ui.set_subscriptions_status_text(format!("{} total channels", all_channels.len()).into());
+        replace_subscriptions_channels(&ui, items);
+
+        queue_channel_avatars(
+            page_channels,
+            AvatarTarget::Subscriptions,
+            generation,
+            weak_clone,
+            context_clone.state.clone(),
+            context_clone.handle.clone(),
+        );
+    });
+}
+
 pub fn load_subscriptions(weak: slint::Weak<AppWindow>, context: AppContext) {
     let generation = {
         let Ok(mut state) = context.state.lock() else {
@@ -56,6 +182,8 @@ pub fn load_subscriptions(weak: slint::Weak<AppWindow>, context: AppContext) {
     }
 
     let spawn_handle = context.handle.clone();
+    let context_clone = context.clone();
+    let weak_clone = weak.clone();
 
     spawn_handle.spawn(async move {
         let channels = tokio::task::spawn_blocking(get_subscriptions)
@@ -64,105 +192,94 @@ pub fn load_subscriptions(weak: slint::Weak<AppWindow>, context: AppContext) {
             .and_then(|r| r.ok())
             .unwrap_or_default();
 
-        let _ = weak.upgrade_in_event_loop(move |ui| {
-            let is_current = context
-                .state
-                .lock()
-                .map(|state| state.subscriptions_generation == generation)
-                .unwrap_or(false);
+        if let Ok(mut state) = context_clone.state.lock() {
+            state.subscriptions_all = channels;
+        }
 
-            if !is_current {
-                return;
-            }
-
-            let filter_query = context
-                .state
-                .lock()
-                .map(|state| state.subscriptions_filter_query.clone())
-                .unwrap_or_default();
-
-            let filtered_channels: Vec<SubscribedChannel> = if filter_query.is_empty() {
-                channels.clone()
-            } else {
-                let q = filter_query.to_lowercase();
-                channels
-                    .iter()
-                    .filter(|c| c.title.to_lowercase().contains(&q))
-                    .cloned()
-                    .collect()
-            };
-
-            let items: Vec<ChannelItem> = filtered_channels
-                .iter()
-                .map(|c| channel_to_ui(c, slint::Image::default()))
-                .collect();
-
-            if let Ok(mut state) = context.state.lock() {
-                state.subscriptions_loading = false;
-                state.subscriptions_status = format!("{} channels", channels.len());
-                state.subscriptions_all = channels.clone();
-                state.subscriptions_filtered = filtered_channels;
-            }
-
-            ui.set_subscriptions_loading(false);
-            ui.set_subscriptions_count(channels.len() as i32);
-            ui.set_subscriptions_status_text(format!("{} channels", channels.len()).into());
-            replace_subscriptions_channels(&ui, items);
-
-            queue_channel_avatars(
-                channels,
-                AvatarTarget::Subscriptions,
-                generation,
-                ui.as_weak(),
-                context.state.clone(),
-                context.handle.clone(),
-            );
-        });
+        refresh_subscriptions_view(weak_clone, &context_clone, generation);
     });
 }
 
 pub fn filter_subscriptions(weak: slint::Weak<AppWindow>, context: AppContext, query: String) {
-    if let Ok(mut state) = context.state.lock() {
-        state.subscriptions_filter_query = query.clone();
-    }
-
-    if let Some(ui) = weak.upgrade() {
-        let all = context
-            .state
-            .lock()
-            .map(|s| s.subscriptions_all.clone())
-            .unwrap_or_default();
-
-        let filtered: Vec<SubscribedChannel> = if query.trim().is_empty() {
-            all
-        } else {
-            let q = query.to_lowercase();
-            all.into_iter()
-                .filter(|c| c.title.to_lowercase().contains(&q))
-                .collect()
+    let generation = {
+        let Ok(mut state) = context.state.lock() else {
+            return;
         };
+        state.subscriptions_filter_query = query;
+        state.subscriptions_current_page = 1;
+        state.subscriptions_generation = state.subscriptions_generation.wrapping_add(1);
+        state.subscriptions_generation
+    };
 
-        let items: Vec<ChannelItem> = filtered
-            .iter()
-            .map(|c| channel_to_ui(c, slint::Image::default()))
-            .collect();
-        replace_subscriptions_channels(&ui, items);
+    refresh_subscriptions_view(weak, &context, generation);
+}
 
-        let generation = context
-            .state
-            .lock()
-            .map(|s| s.subscriptions_generation)
-            .unwrap_or(0);
+pub fn next_page(weak: slint::Weak<AppWindow>, context: AppContext) {
+    let generation = {
+        let Ok(mut state) = context.state.lock() else {
+            return;
+        };
+        state.subscriptions_current_page += 1;
+        state.subscriptions_generation = state.subscriptions_generation.wrapping_add(1);
+        state.subscriptions_generation
+    };
 
-        queue_channel_avatars(
-            filtered,
-            AvatarTarget::Subscriptions,
-            generation,
-            ui.as_weak(),
-            context.state.clone(),
-            context.handle.clone(),
-        );
-    }
+    refresh_subscriptions_view(weak, &context, generation);
+}
+
+pub fn prev_page(weak: slint::Weak<AppWindow>, context: AppContext) {
+    let generation = {
+        let Ok(mut state) = context.state.lock() else {
+            return;
+        };
+        if state.subscriptions_current_page > 1 {
+            state.subscriptions_current_page -= 1;
+        }
+        state.subscriptions_generation = state.subscriptions_generation.wrapping_add(1);
+        state.subscriptions_generation
+    };
+
+    refresh_subscriptions_view(weak, &context, generation);
+}
+
+pub fn first_page(weak: slint::Weak<AppWindow>, context: AppContext) {
+    let generation = {
+        let Ok(mut state) = context.state.lock() else {
+            return;
+        };
+        state.subscriptions_current_page = 1;
+        state.subscriptions_generation = state.subscriptions_generation.wrapping_add(1);
+        state.subscriptions_generation
+    };
+
+    refresh_subscriptions_view(weak, &context, generation);
+}
+
+pub fn last_page(weak: slint::Weak<AppWindow>, context: AppContext) {
+    let generation = {
+        let Ok(mut state) = context.state.lock() else {
+            return;
+        };
+        state.subscriptions_current_page = usize::MAX;
+        state.subscriptions_generation = state.subscriptions_generation.wrapping_add(1);
+        state.subscriptions_generation
+    };
+
+    refresh_subscriptions_view(weak, &context, generation);
+}
+
+pub fn change_sort(weak: slint::Weak<AppWindow>, context: AppContext, sort: String) {
+    let generation = {
+        let Ok(mut state) = context.state.lock() else {
+            return;
+        };
+        state.subscriptions_sort = sort;
+        state.subscriptions_current_page = 1;
+        state.subscriptions_generation = state.subscriptions_generation.wrapping_add(1);
+        state.subscriptions_generation
+    };
+
+    refresh_subscriptions_view(weak, &context, generation);
 }
 
 pub fn select_channel(
@@ -185,17 +302,14 @@ pub fn select_channel(
     };
 
     if let Some(ui) = weak.upgrade() {
-        ui.set_subscriptions_loading(true);
-        ui.set_subscriptions_status_text(
-            format!("Loading videos from {channel_title}...").into(),
-        );
         ui.set_subscriptions_selected_channel_id(channel_id.clone().into());
         ui.set_subscriptions_selected_channel_title(channel_title.clone().into());
-        replace_channel_videos(&ui, Vec::new());
+        ui.set_subscriptions_loading(true);
+        ui.set_subscriptions_status_text(format!("Loading videos from {channel_title}...").into());
     }
 
+    let spawn_handle = context.handle.clone();
     let handle = context.handle.clone();
-    let spawn_handle = handle.clone();
     let query = channel_title.clone();
 
     spawn_handle.spawn(async move {
@@ -265,17 +379,24 @@ pub fn select_channel(
 }
 
 pub fn clear_selected_channel(weak: slint::Weak<AppWindow>, context: AppContext) {
-    if let Ok(mut state) = context.state.lock() {
+    let generation = {
+        let Ok(mut state) = context.state.lock() else {
+            return;
+        };
         state.subscriptions_selected_channel_id = None;
         state.subscriptions_selected_channel_title = None;
         state.subscriptions_channel_videos.clear();
-    }
+        state.subscriptions_generation = state.subscriptions_generation.wrapping_add(1);
+        state.subscriptions_generation
+    };
 
     if let Some(ui) = weak.upgrade() {
         ui.set_subscriptions_selected_channel_id("".into());
         ui.set_subscriptions_selected_channel_title("".into());
         replace_channel_videos(&ui, Vec::new());
     }
+
+    refresh_subscriptions_view(weak, &context, generation);
 }
 
 pub fn remove_channel(weak: slint::Weak<AppWindow>, context: AppContext, channel_id: String) {
@@ -293,6 +414,8 @@ pub fn register(ui: &AppWindow, context: &AppContext) {
     register_nav(ui, context);
     register_load(ui, context);
     register_filter(ui, context);
+    register_pagination(ui, context);
+    register_sort(ui, context);
     register_channel_select(ui, context);
     register_channel_remove(ui, context);
 }
@@ -343,6 +466,52 @@ fn register_filter(ui: &AppWindow, context: &AppContext) {
     });
 }
 
+fn register_pagination(ui: &AppWindow, context: &AppContext) {
+    let weak = ui.as_weak();
+    let context = context.clone();
+
+    ui.on_subscriptions_next_page({
+        let weak = weak.clone();
+        let context = context.clone();
+        move || {
+            next_page(weak.clone(), context.clone());
+        }
+    });
+
+    ui.on_subscriptions_prev_page({
+        let weak = weak.clone();
+        let context = context.clone();
+        move || {
+            prev_page(weak.clone(), context.clone());
+        }
+    });
+
+    ui.on_subscriptions_first_page({
+        let weak = weak.clone();
+        let context = context.clone();
+        move || {
+            first_page(weak.clone(), context.clone());
+        }
+    });
+
+    ui.on_subscriptions_last_page({
+        let weak = weak.clone();
+        let context = context.clone();
+        move || {
+            last_page(weak.clone(), context.clone());
+        }
+    });
+}
+
+fn register_sort(ui: &AppWindow, context: &AppContext) {
+    let weak = ui.as_weak();
+    let context = context.clone();
+
+    ui.on_subscriptions_change_sort(move |sort| {
+        change_sort(weak.clone(), context.clone(), sort.to_string());
+    });
+}
+
 fn register_channel_select(ui: &AppWindow, context: &AppContext) {
     let weak = ui.as_weak();
     let context = context.clone();
@@ -382,4 +551,3 @@ fn register_channel_remove(ui: &AppWindow, context: &AppContext) {
         remove_channel(weak.clone(), context.clone(), id.to_string());
     });
 }
-
