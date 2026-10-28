@@ -21,7 +21,11 @@ import {
 } from "components/episode-row.slint";
 import {
     VideoItem,
+    ChannelItem,
 } from "components/video-card.slint";
+import {
+    SubscriptionsPage,
+} from "pages/subscriptions-page.slint";
 import {
     HistoryPage,
 } from "pages/history-page.slint";
@@ -156,10 +160,27 @@ export component AppWindow inherits Window {
     in-out property <string> trending-selected-category: "";
     in-out property <string> trending-selected-country: "ID";
 
+    // YouTube Subscriptions
+    in-out property <[ChannelItem]> home-subscribed-channels;
+    in-out property <[ChannelItem]> subscriptions-channels;
+    in-out property <[VideoItem]> subscriptions-channel-videos;
+    in-out property <bool> subscriptions-loading: false;
+    in-out property <string> subscriptions-status-text: "";
+    in-out property <string> subscriptions-filter-query: "";
+    in-out property <string> subscriptions-selected-channel-id: "";
+    in-out property <string> subscriptions-selected-channel-title: "";
+
     callback save-provider(string);
     callback select-import-file();
     callback import-subscriptions(string);
     callback clear-subscriptions();
+    callback nav-subscriptions();
+    callback load-subscriptions();
+    callback filter-subscriptions(string);
+    callback select-subscription-channel(string, string);
+    callback clear-selected-subscription-channel();
+    callback remove-subscription-channel(string);
+    callback refresh-subscriptions();
     callback search(string);
     callback open-video(string);
     callback play-video(string);
@@ -262,6 +283,10 @@ export component AppWindow inherits Window {
                 root.nav-trending();
             }
 
+            nav-subscriptions => {
+                root.nav-subscriptions();
+            }
+
             nav-search => {
                 root.nav-search(root.search-query);
             }
@@ -301,6 +326,7 @@ export component AppWindow inherits Window {
                 videos: root.home-videos;
                 continue-videos: root.home-continue-videos;
                 favorite-videos: root.home-favorite-videos;
+                subscribed-channels: root.home-subscribed-channels;
                 home-loading: root.home-loading;
                 home-status-text: root.home-status-text;
                 selected-topic: root.home-selected-topic;
@@ -333,6 +359,14 @@ export component AppWindow inherits Window {
 
                 show-anime => {
                     root.nav-anime();
+                }
+
+                show-subscriptions => {
+                    root.nav-subscriptions();
+                }
+
+                select-channel(id, title) => {
+                    root.select-subscription-channel(id, title);
                 }
 
                 select-topic(topic) => {
@@ -369,6 +403,46 @@ export component AppWindow inherits Window {
 
                 refresh => {
                     root.load-trending();
+                }
+            }
+
+            if root.current-page == "subscriptions": SubscriptionsPage {
+                width: parent.width;
+                height: parent.height;
+                channels: root.subscriptions-channels;
+                channel-videos: root.subscriptions-channel-videos;
+                loading: root.subscriptions-loading;
+                status-text: root.subscriptions-status-text;
+                filter-query <=> root.subscriptions-filter-query;
+                selected-channel-id: root.subscriptions-selected-channel-id;
+                selected-channel-title: root.subscriptions-selected-channel-title;
+
+                select-channel(id, title) => {
+                    root.select-subscription-channel(id, title);
+                }
+
+                clear-selected-channel => {
+                    root.clear-selected-subscription-channel();
+                }
+
+                remove-channel(id) => {
+                    root.remove-subscription-channel(id);
+                }
+
+                refresh => {
+                    root.refresh-subscriptions();
+                }
+
+                open-video(id) => {
+                    root.open-video(id);
+                }
+
+                open-settings => {
+                    root.nav-settings();
+                }
+
+                filter-changed(query) => {
+                    root.filter-subscriptions(query);
                 }
             }
 
@@ -649,6 +723,10 @@ export component AppWindow inherits Window {
 
                 clear-subscriptions => {
                     root.clear-subscriptions();
+                }
+
+                nav-subscriptions => {
+                    root.nav-subscriptions();
                 }
             }
 

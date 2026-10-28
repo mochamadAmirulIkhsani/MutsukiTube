@@ -8,6 +8,13 @@ export struct VideoItem {
     thumbnail: image,
 }
 
+export struct ChannelItem {
+    id: string,
+    url: string,
+    title: string,
+    initials: string,
+}
+
 /// Horizontal video card (used in Search, History, Library lists)
 export component VideoCard inherits Rectangle {
     in property <VideoItem> video;

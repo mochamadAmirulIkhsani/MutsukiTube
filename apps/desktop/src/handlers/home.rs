@@ -62,9 +62,20 @@ fn load_home(weak: slint::Weak<AppWindow>, context: AppContext) {
             .and_then(|r| r.ok())
             .unwrap_or_default();
 
+        let subscriptions = tokio::task::spawn_blocking(mutsukitube_storage::get_subscriptions)
+            .await
+            .ok()
+            .and_then(|r| r.ok())
+            .unwrap_or_default();
+
         let provider = YoutubeProvider::new();
+        let explore_query = if let Some(sub) = subscriptions.first() {
+            sub.title.as_str()
+        } else {
+            "Music"
+        };
         let explore = provider
-            .search("Music")
+            .search(explore_query)
             .await
             .ok()
             .unwrap_or_default()
@@ -98,6 +109,12 @@ fn load_home(weak: slint::Weak<AppWindow>, context: AppContext) {
                 .map(|video: &Video| video_to_ui(video, slint::Image::default()))
                 .collect();
 
+            let sub_items: Vec<crate::ChannelItem> = subscriptions
+                .iter()
+                .take(20)
+                .map(crate::ui_models::channel_to_ui)
+                .collect();
+
             if let Ok(mut state) = context.state.lock() {
                 state.home_loading = false;
                 state.home_status = format!("{} videos", explore_items.len());
@@ -119,6 +136,7 @@ fn load_home(weak: slint::Weak<AppWindow>, context: AppContext) {
 
             ui.set_home_continue_videos(ModelRc::from(Rc::new(VecModel::from(continue_items))));
             ui.set_home_favorite_videos(ModelRc::from(Rc::new(VecModel::from(favorite_items))));
+            ui.set_home_subscribed_channels(ModelRc::from(Rc::new(VecModel::from(sub_items))));
             replace_home_videos(&ui, explore_items);
 
             queue_thumbnails(

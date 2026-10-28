@@ -130,6 +130,38 @@ pub fn clear_subscriptions() -> rusqlite::Result<usize> {
     Ok(deleted)
 }
 
+/// Remove a single subscribed channel by ID.
+pub fn remove_subscription(channel_id: &str) -> rusqlite::Result<usize> {
+    let connection = open_connection()?;
+    let deleted = connection.execute(
+        "DELETE FROM subscriptions WHERE channel_id = ?1",
+        [channel_id],
+    )?;
+    Ok(deleted)
+}
+
+/// Check if a channel ID is subscribed.
+pub fn is_subscribed(channel_id: &str) -> rusqlite::Result<bool> {
+    let connection = open_connection()?;
+    let count: i64 = connection.query_row(
+        "SELECT COUNT(*) FROM subscriptions WHERE channel_id = ?1",
+        [channel_id],
+        |row| row.get(0),
+    )?;
+    Ok(count > 0)
+}
+
+/// Add or update a single subscribed channel.
+pub fn add_subscription(id: &str, url: &str, title: &str) -> rusqlite::Result<()> {
+    let connection = open_connection()?;
+    connection.execute(
+        "INSERT OR REPLACE INTO subscriptions (channel_id, channel_url, channel_title)
+         VALUES (?1, ?2, ?3)",
+        (id, url, title),
+    )?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

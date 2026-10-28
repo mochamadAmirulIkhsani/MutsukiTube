@@ -60,6 +60,7 @@ export component Sidebar inherits Rectangle {
 
     callback nav-home();
     callback nav-trending();
+    callback nav-subscriptions();
     callback nav-search();
     callback nav-anime();
     callback nav-library();
@@ -178,6 +179,14 @@ export component Sidebar inherits Rectangle {
                 collapsed: root.collapsed;
                 active: root.current-page == "trending";
                 clicked => { root.nav-trending(); }
+            }
+
+            NavItem {
+                icon: @image-url("../assets/subscriptions.svg");
+                label: "Subscriptions";
+                collapsed: root.collapsed;
+                active: root.current-page == "subscriptions";
+                clicked => { root.nav-subscriptions(); }
             }
 
             NavItem {

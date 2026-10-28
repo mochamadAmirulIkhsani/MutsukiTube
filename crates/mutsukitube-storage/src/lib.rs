@@ -16,8 +16,9 @@ pub use anime::{
 pub use history::{clear_history, get_history, save_video};
 
 pub use importer::{
-    SubscribedChannel, clear_subscriptions, get_subscriptions, get_subscriptions_count,
-    import_subscriptions, parse_subscriptions_csv,
+    SubscribedChannel, add_subscription, clear_subscriptions, get_subscriptions,
+    get_subscriptions_count, import_subscriptions, is_subscribed, parse_subscriptions_csv,
+    remove_subscription,
 };
 
 pub use settings::{get_provider_mode, set_provider_mode, validate_provider_mode};

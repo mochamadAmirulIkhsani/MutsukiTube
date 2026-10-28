@@ -1,0 +1,384 @@
+import {
+    Button,
+    LineEdit,
+    ScrollView,
+    Spinner,
+} from "std-widgets.slint";
+
+import { ChannelItem, GridVideoCard, VideoItem } from "../components/video-card.slint";
+import { Theme } from "../theme.slint";
+
+component ChannelCard inherits Rectangle {
+    in property <ChannelItem> channel;
+
+    callback clicked();
+    callback remove();
+
+    width: 220px;
+    height: 160px;
+    border-radius: Theme.radius;
+    background: touch.has-hover ? Theme.surface-hover : Theme.surface;
+    border-width: 1px;
+    border-color: touch.has-hover ? Theme.border-strong : Theme.border;
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    VerticalLayout {
+        padding: 14px;
+        spacing: 8px;
+        alignment: center;
+        cross-axis-alignment: center;
+
+        // Channel Avatar Circle
+        Rectangle {
+            width: 48px;
+            height: 48px;
+            border-radius: 24px;
+            background: Theme.accent-soft;
+
+            Text {
+                text: root.channel.initials;
+                font-size: 18px;
+                font-weight: 700;
+                color: Theme.accent;
+                vertical-alignment: center;
+                horizontal-alignment: center;
+            }
+        }
+
+        // Channel Name
+        Text {
+            text: root.channel.title;
+            font-size: 14px;
+            font-weight: 600;
+            color: Theme.text-primary;
+            horizontal-alignment: center;
+            overflow: elide;
+            max-width: 190px;
+        }
+
+        // Action Buttons Row
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: center;
+            cross-axis-alignment: center;
+
+            Button {
+                text: "Videos";
+                primary: true;
+                clicked => { root.clicked(); }
+            }
+
+            Button {
+                text: "Remove";
+                clicked => { root.remove(); }
+            }
+        }
+    }
+}
+
+export component SubscriptionsPage inherits Rectangle {
+    in property <[ChannelItem]> channels;
+    in property <[VideoItem]> channel-videos;
+    in property <bool> loading: false;
+    in property <string> status-text: "";
+    in-out property <string> filter-query: "";
+    in property <string> selected-channel-id: "";
+    in property <string> selected-channel-title: "";
+
+    callback select-channel(string, string);
+    callback clear-selected-channel();
+    callback remove-channel(string);
+    callback refresh();
+    callback open-video(string);
+    callback open-settings();
+    callback filter-changed(string);
+
+    background: Theme.bg;
+
+    VerticalLayout {
+        spacing: 0px;
+
+        // ------------------------------------------------------------- Top Bar
+        Rectangle {
+            height: 68px;
+            background: Theme.bg;
+
+            Rectangle {
+                y: parent.height - 1px;
+                height: 1px;
+                width: 100%;
+                background: Theme.border;
+            }
+
+            HorizontalLayout {
+                padding-left: 24px;
+                padding-right: 24px;
+                spacing: 16px;
+                alignment: space-between;
+                cross-axis-alignment: center;
+
+                // Heading / Back
+                HorizontalLayout {
+                    spacing: 12px;
+                    alignment: start;
+                    cross-axis-alignment: center;
+
+                    if root.selected-channel-id != "": Button {
+                        text: "‹ All Channels";
+                        clicked => {
+                            root.clear-selected-channel();
+                        }
+                    }
+
+                    Image {
+                        source: @image-url("../assets/subscriptions.svg");
+                        width: 22px;
+                        height: 22px;
+                        colorize: Theme.accent;
+                    }
+
+                    VerticalLayout {
+                        spacing: 2px;
+                        alignment: center;
+
+                        Text {
+                            text: root.selected-channel-id != ""
+                                ? root.selected-channel-title
+                                : "Subscriptions";
+                            color: Theme.text-primary;
+                            font-size: 20px;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+
+                        Text {
+                            text: root.selected-channel-id != ""
+                                ? "Channel Uploads & Videos"
+                                : (root.channels.length + " subscribed channels");
+                            color: Theme.text-secondary;
+                            font-size: 12px;
+                        }
+                    }
+                }
+
+                // Controls: Filter + Refresh
+                HorizontalLayout {
+                    spacing: 12px;
+                    alignment: end;
+                    cross-axis-alignment: center;
+
+                    if root.selected-channel-id == "": filter-input := LineEdit {
+                        placeholder-text: "Filter channels...";
+                        text: root.filter-query;
+                        width: 220px;
+                        edited => {
+                            root.filter-query = self.text;
+                            root.filter-changed(self.text);
+                        }
+                    }
+
+                    Button {
+                        text: "↻ Refresh";
+                        enabled: !root.loading;
+                        clicked => {
+                            root.refresh();
+                        }
+                    }
+                }
+            }
+        }
+
+        // ------------------------------------------------------------- Main Content
+        ScrollView {
+            vertical-scrollbar-policy: as-needed;
+            horizontal-scrollbar-policy: always-off;
+
+            VerticalLayout {
+                padding: 24px;
+                spacing: 20px;
+
+                // Loading Indicator
+                if root.loading: HorizontalLayout {
+                    alignment: center;
+                    spacing: 10px;
+                    padding-top: 12px;
+                    padding-bottom: 12px;
+
+                    Spinner {
+                        indeterminate: true;
+                        width: 24px;
+                        height: 24px;
+                    }
+
+                    Text {
+                        text: root.status-text != "" ? root.status-text : "Loading...";
+                        color: Theme.text-secondary;
+                        font-size: 13px;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // Status Message when not loading
+                if !root.loading && root.status-text != "": HorizontalLayout {
+                    alignment: start;
+
+                    Text {
+                        text: root.status-text;
+                        color: Theme.text-secondary;
+                        font-size: 13px;
+                    }
+                }
+
+                // VIEW 1: Channel Videos View (when a channel is selected)
+                if root.selected-channel-id != "": VerticalLayout {
+                    spacing: 14px;
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        cross-axis-alignment: center;
+
+                        Rectangle {
+                            width: 3px;
+                            height: 16px;
+                            border-radius: 1.5px;
+                            background: Theme.accent;
+                        }
+
+                        Text {
+                            text: "Latest Uploads from " + root.selected-channel-title;
+                            color: Theme.text-primary;
+                            font-size: 18px;
+                            font-weight: 700;
+                        }
+                    }
+
+                    if root.channel-videos.length > 0: FlexboxLayout {
+                        spacing: 18px;
+                        flex-direction: row;
+                        flex-wrap: wrap;
+                        alignment: start;
+
+                        for video in root.channel-videos: GridVideoCard {
+                            video: video;
+                            clicked(id) => {
+                                root.open-video(id);
+                            }
+                        }
+                    }
+
+                    if root.channel-videos.length == 0 && !root.loading: Rectangle {
+                        background: transparent;
+                        height: 220px;
+
+                        VerticalLayout {
+                            alignment: center;
+                            cross-axis-alignment: center;
+                            spacing: 12px;
+
+                            Text {
+                                text: "No videos found for this channel";
+                                color: Theme.text-secondary;
+                                font-size: 15px;
+                                font-weight: 500;
+                            }
+                        }
+                    }
+                }
+
+                // VIEW 2: Subscribed Channels Grid (when no channel is selected)
+                if root.selected-channel-id == "" && root.channels.length > 0: VerticalLayout {
+                    spacing: 14px;
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        cross-axis-alignment: center;
+
+                        Rectangle {
+                            width: 3px;
+                            height: 16px;
+                            border-radius: 1.5px;
+                            background: Theme.accent;
+                        }
+
+                        Text {
+                            text: root.filter-query != ""
+                                ? "Matching Channels (" + root.channels.length + ")"
+                                : "Subscribed Channels";
+                            color: Theme.text-primary;
+                            font-size: 18px;
+                            font-weight: 700;
+                        }
+                    }
+
+                    FlexboxLayout {
+                        spacing: 16px;
+                        flex-direction: row;
+                        flex-wrap: wrap;
+                        alignment: start;
+
+                        for channel in root.channels: ChannelCard {
+                            channel: channel;
+                            clicked => {
+                                root.select-channel(channel.id, channel.title);
+                            }
+                            remove => {
+                                root.remove-channel(channel.id);
+                            }
+                        }
+                    }
+                }
+
+                // VIEW 3: Empty State (no subscriptions imported)
+                if root.selected-channel-id == "" && root.channels.length == 0 && !root.loading: Rectangle {
+                    background: transparent;
+                    height: 320px;
+
+                    VerticalLayout {
+                        alignment: center;
+                        cross-axis-alignment: center;
+                        spacing: 16px;
+
+                        Image {
+                            source: @image-url("../assets/subscriptions.svg");
+                            width: 54px;
+                            height: 54px;
+                            colorize: Theme.text-muted;
+                        }
+
+                        Text {
+                            text: root.filter-query != ""
+                                ? "No channels match \"" + root.filter-query + "\""
+                                : "No Subscribed Channels Yet";
+                            color: Theme.text-primary;
+                            font-size: 18px;
+                            font-weight: 700;
+                        }
+
+                        Text {
+                            text: root.filter-query != ""
+                                ? "Try a different search term"
+                                : "Import your subscriptions from Google Takeout (subscriptions.csv or langganan.csv) in Settings.";
+                            color: Theme.text-secondary;
+                            font-size: 14px;
+                            max-width: 440px;
+                            horizontal-alignment: center;
+                            wrap: word-wrap;
+                        }
+
+                        if root.filter-query == "": Button {
+                            text: "Open Settings to Import";
+                            primary: true;
+                            clicked => {
+                                root.open-settings();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

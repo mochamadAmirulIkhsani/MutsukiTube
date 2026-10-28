@@ -21,6 +21,7 @@ export component SettingsPage inherits Rectangle {
     callback select-import-file();
     callback import-subscriptions(string);
     callback clear-subscriptions();
+    callback nav-subscriptions();
 
     background: Theme.bg;
 
@@ -222,6 +223,7 @@ export component SettingsPage inherits Rectangle {
 
                 if root.subscriptions-count > 0: HorizontalBox {
                     alignment: end;
+                    spacing: 10px;
 
                     Rectangle {
                         horizontal-stretch: 1;
@@ -232,6 +234,14 @@ export component SettingsPage inherits Rectangle {
                         text: "Clear Subscriptions";
                         clicked => {
                             root.clear-subscriptions();
+                        }
+                    }
+
+                    Button {
+                        text: "View Subscriptions ›";
+                        primary: true;
+                        clicked => {
+                            root.nav-subscriptions();
                         }
                     }
                 }

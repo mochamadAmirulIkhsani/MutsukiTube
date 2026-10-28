@@ -17,6 +17,7 @@ fn find_video(state: &AppState, video_id: &str) -> Option<Video> {
         .iter()
         .chain(state.home_results.iter())
         .chain(state.trending_results.iter())
+        .chain(state.subscriptions_channel_videos.iter())
         .chain(state.history_results.iter())
         .chain(state.library_results.iter())
         .find(|video| video.id == video_id)

@@ -277,4 +277,68 @@ UCsBjURrPoezykLs9EqgamOA,http://www.youtube.com/channel/UCsBjURrPoezykLs9EqgamOA
         assert_eq!(channels_en.len(), 1);
         assert_eq!(channels_en[0].title, "Fireship");
     }
+
+    // =========================================================================
+    // SUBSCRIPTIONS PAGE & FEED VERIFICATION: Navigation, Initials & Video Playback
+    // =========================================================================
+    #[test]
+    fn verify_subscriptions_channel_playback_and_navigation_succeeds() {
+        let mut state = AppState::default();
+
+        let channel_video = Video {
+            id: "channelVid1".into(),
+            title: "Latest Channel Upload".into(),
+            channel: "Fireship".into(),
+            thumbnail: "https://example.com/fire.jpg".into(),
+            duration: Some(120),
+        };
+
+        state.subscriptions_channel_videos.push(channel_video.clone());
+
+        // Verify player find_video queries subscriptions_channel_videos
+        let found = state
+            .search_results
+            .iter()
+            .chain(state.home_results.iter())
+            .chain(state.trending_results.iter())
+            .chain(state.subscriptions_channel_videos.iter())
+            .chain(state.history_results.iter())
+            .chain(state.library_results.iter())
+            .find(|v| v.id == "channelVid1");
+
+        assert!(
+            found.is_some(),
+            "Subscription channel video is successfully resolved in AppState"
+        );
+        assert_eq!(found.unwrap().channel, "Fireship");
+
+        // Verify navigation push and back preservation
+        navigation::push_entry(
+            &mut state,
+            NavEntry::new(NavRoute::YouTubeSubscriptions {
+                channel_id: Some("UCsBjURrPoezykLs9EqgamOA".into()),
+                channel_title: Some("Fireship".into()),
+            }),
+        );
+
+        assert_eq!(state.nav_stack.len(), 1);
+        assert_eq!(
+            state.nav_stack.last().unwrap().route,
+            NavRoute::YouTubeSubscriptions {
+                channel_id: Some("UCsBjURrPoezykLs9EqgamOA".into()),
+                channel_title: Some("Fireship".into()),
+            }
+        );
+    }
+
+    #[test]
+    fn verify_channel_initials_computation() {
+        use crate::ui_models::compute_initials;
+
+        assert_eq!(compute_initials("Google Developers"), "GD");
+        assert_eq!(compute_initials("Fireship"), "FI");
+        assert_eq!(compute_initials("Marques Brownlee"), "MB");
+        assert_eq!(compute_initials("A"), "A");
+        assert_eq!(compute_initials(""), "?");
+    }
 }

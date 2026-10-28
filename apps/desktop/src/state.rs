@@ -98,4 +98,15 @@ pub struct AppState {
     pub trending_loading: bool,
     pub trending_status: String,
     pub trending_generation: u64,
+
+    // ---- YouTube Subscriptions ----------------------------------------------
+    pub subscriptions_all: Vec<mutsukitube_storage::SubscribedChannel>,
+    pub subscriptions_filtered: Vec<mutsukitube_storage::SubscribedChannel>,
+    pub subscriptions_channel_videos: Vec<Video>,
+    pub subscriptions_selected_channel_id: Option<String>,
+    pub subscriptions_selected_channel_title: Option<String>,
+    pub subscriptions_filter_query: String,
+    pub subscriptions_loading: bool,
+    pub subscriptions_status: String,
+    pub subscriptions_generation: u64,
 }

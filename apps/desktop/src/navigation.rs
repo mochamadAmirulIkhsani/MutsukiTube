@@ -17,6 +17,10 @@ use crate::{AppWindow, app_context::AppContext, state::AppState};
 pub enum NavRoute {
     YouTubeHome,
     YouTubeTrending { category: String },
+    YouTubeSubscriptions {
+        channel_id: Option<String>,
+        channel_title: Option<String>,
+    },
     YouTubeSearch { query: String },
     YouTubeHistory,
     YouTubeFavorites,
@@ -48,6 +52,7 @@ impl NavRoute {
         match self {
             NavRoute::YouTubeHome => "youtube-home",
             NavRoute::YouTubeTrending { .. } => "trending",
+            NavRoute::YouTubeSubscriptions { .. } => "subscriptions",
             NavRoute::YouTubeSearch { .. } => "search",
             NavRoute::YouTubeHistory => "history",
             NavRoute::YouTubeFavorites | NavRoute::YouTubePlaylist { .. } => "library",
@@ -61,6 +66,7 @@ impl NavRoute {
         match self {
             NavRoute::YouTubeHome => "YouTube Home",
             NavRoute::YouTubeTrending { .. } => "Trending",
+            NavRoute::YouTubeSubscriptions { .. } => "Subscriptions",
             NavRoute::YouTubeSearch { .. } => "Search Results",
             NavRoute::YouTubeHistory => "Watch History",
             NavRoute::YouTubeFavorites => "Favorites",
@@ -81,6 +87,10 @@ fn same_route(a: &NavRoute, b: &NavRoute) -> bool {
         (NavRoute::YouTubeTrending { category: c1 }, NavRoute::YouTubeTrending { category: c2 }) => {
             c1 == c2
         }
+        (
+            NavRoute::YouTubeSubscriptions { channel_id: c1, .. },
+            NavRoute::YouTubeSubscriptions { channel_id: c2, .. },
+        ) => c1 == c2,
         (NavRoute::YouTubeSearch { query: q1 }, NavRoute::YouTubeSearch { query: q2 }) => q1 == q2,
         (NavRoute::YouTubeHistory, NavRoute::YouTubeHistory) => true,
         (NavRoute::YouTubeFavorites, NavRoute::YouTubeFavorites) => true,
@@ -254,6 +264,14 @@ pub fn restore_destination(ui: &AppWindow, route: &NavRoute) {
         NavRoute::YouTubeTrending { category } => {
             let _ = ui.set_trending_selected_category(category.clone().into());
         }
+        NavRoute::YouTubeSubscriptions { channel_id, channel_title } => {
+            let _ = ui.set_subscriptions_selected_channel_id(
+                channel_id.clone().unwrap_or_default().into(),
+            );
+            let _ = ui.set_subscriptions_selected_channel_title(
+                channel_title.clone().unwrap_or_default().into(),
+            );
+        }
         NavRoute::YouTubeSearch { query } => {
             // Echo the preserved query into the search box. The results already
             // live in `AppState.search_results` and are deliberately not
@@ -290,6 +308,16 @@ fn activate_route(ui: &AppWindow, route: &NavRoute) {
         }
         NavRoute::YouTubeTrending { .. } => {
             let _ = ui.invoke_load_trending();
+        }
+        NavRoute::YouTubeSubscriptions { channel_id, channel_title } => {
+            match (channel_id, channel_title) {
+                (Some(id), Some(title)) => {
+                    let _ = ui.invoke_select_subscription_channel(id.clone().into(), title.clone().into());
+                }
+                _ => {
+                    let _ = ui.invoke_load_subscriptions();
+                }
+            }
         }
         NavRoute::YouTubeHistory => {
             let _ = ui.invoke_show_history();
