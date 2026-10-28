@@ -39,6 +39,9 @@ mod player_controller;
 
 slint::include_modules!();
 
+#[cfg(test)]
+mod issue_simulations;
+
 /// Persist the currently playing anime episode's position under its own
 /// identity. Called before the player switches media (episode change, leaving
 /// the Watch page, or starting YouTube) so the outgoing episode keeps its own
@@ -481,6 +484,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let was_minimized = Cell::new(false);
         let video_loading = Cell::new(false);
         let last_playback_state = RefCell::new(String::new());
+        let seeking_ticks = Cell::new(0u32);
         let state_for_timer = state.clone();
         let progress_handle = tokio_handle.clone();
 
@@ -577,8 +581,20 @@ fn main() -> Result<(), slint::PlatformError> {
                         ui.set_playback_duration(0.0);
                     }
 
-                    // Never yank the thumb while the user is dragging the slider.
-                    if !ui.get_timeline_seek_active() {
+                    // Never yank the thumb while the user is dragging the slider (auto-clears after 1.6s).
+                    if ui.get_timeline_seek_active() {
+                        let ticks = seeking_ticks.get() + 1;
+                        if ticks > 8 {
+                            ui.set_timeline_seek_active(false);
+                            seeking_ticks.set(0);
+                            ui.set_playback_position(position as f32);
+                        } else {
+                            seeking_ticks.set(ticks);
+                        }
+                    } else {
+                        seeking_ticks.set(0);
+
+
                         ui.set_playback_position(position as f32);
                     }
 

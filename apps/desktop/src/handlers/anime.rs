@@ -580,7 +580,7 @@ fn register_select(ui: &AppWindow, context: &AppContext) {
                     );
                 }
 
-                let selected_number = if resume_number > 0 { resume_number } else { -1 };
+                let selected_number = if resume_number >= 0 { resume_number } else { -1 };
 
                 match episodes_result {
                     Ok(episodes) => {
@@ -590,7 +590,7 @@ fn register_select(ui: &AppWindow, context: &AppContext) {
                         app_state.anime_episodes = episodes;
                         app_state.anime_selected_episode_number = selected_number;
 
-                        if selected_number > 0 {
+                        if selected_number >= 0 {
                             app_state.selected_episode = app_state
                                 .anime_episodes
                                 .iter()
@@ -604,7 +604,7 @@ fn register_select(ui: &AppWindow, context: &AppContext) {
                         ui.set_anime_selected_episode_number(selected_number);
                         ui.set_anime_resume_label(resume_label.clone().into());
 
-                        if selected_number > 0 {
+                        if selected_number >= 0 {
                             ui.set_selected_episode_title(
                                 app_state
                                     .selected_episode
@@ -815,7 +815,7 @@ fn register_play_windows(
 
                 match resume {
                     Some((resume_number, seconds))
-                        if selected <= 0 || selected == resume_number =>
+                        if selected < 0 || selected == resume_number =>
                     {
                         (resume_number, seconds)
                     }

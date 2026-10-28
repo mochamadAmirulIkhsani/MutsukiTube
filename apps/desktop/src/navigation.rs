@@ -193,7 +193,7 @@ mod tests {
         assert_eq!(
             state.nav_stack.first().map(|e| e.route.clone()),
             Some(NavRoute::YouTubeSearch {
-                query: "q10".into()
+                query: "q0".into()
             })
         );
     }
@@ -229,7 +229,11 @@ pub fn push_entry(state: &mut AppState, entry: NavEntry) {
     }
     state.nav_stack.push(entry);
     while state.nav_stack.len() > NAV_STACK_LIMIT {
-        state.nav_stack.remove(0);
+        if state.nav_stack.len() > 1 {
+            state.nav_stack.remove(1);
+        } else {
+            break;
+        }
     }
 }
 

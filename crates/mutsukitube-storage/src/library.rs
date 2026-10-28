@@ -88,9 +88,10 @@ pub fn get_favorites() -> Result<Vec<Video>> {
 pub fn create_playlist(name: &str) -> Result<()> {
     let name = name.trim();
 
-    if name.is_empty() || name.len() > 100 {
+    let char_count = name.chars().count();
+    if char_count == 0 || char_count > 100 {
         return Err(rusqlite::Error::InvalidParameterName(
-            "Playlist name must be 1-100 bytes".into(),
+            "Playlist name must be 1-100 characters".into(),
         ));
     }
 

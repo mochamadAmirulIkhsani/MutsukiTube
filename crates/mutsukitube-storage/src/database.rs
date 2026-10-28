@@ -26,6 +26,8 @@ pub fn open_connection() -> Result<Connection> {
     let connection = Connection::open(path)?;
 
     connection.pragma_update(None, "foreign_keys", "ON")?;
+    connection.pragma_update(None, "journal_mode", "WAL")?;
+    connection.pragma_update(None, "synchronous", "NORMAL")?;
 
     connection.busy_timeout(Duration::from_secs(5))?;
 

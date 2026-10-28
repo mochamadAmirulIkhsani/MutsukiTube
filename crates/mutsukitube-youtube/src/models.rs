@@ -63,6 +63,7 @@ pub fn parse_video_renderer(renderer: &Value) -> Option<Video> {
 }
 
 pub fn parse_duration(text: &str) -> Option<u64> {
+    let text = text.trim();
     if text.is_empty() {
         return None;
     }
@@ -70,7 +71,7 @@ pub fn parse_duration(text: &str) -> Option<u64> {
     let mut total = 0u64;
 
     for part in text.split(':') {
-        let value: u64 = part.parse().ok()?;
+        let value: u64 = part.trim().parse().ok()?;
 
         total = total.checked_mul(60)?.checked_add(value)?;
     }

@@ -20,3 +20,6 @@ pub use library::{
     add_to_playlist, create_playlist, get_favorites, get_playlist_names, get_playlist_videos,
     is_favorite, toggle_favorite,
 };
+
+#[cfg(test)]
+mod issue_simulations;

@@ -20,6 +20,8 @@ pub struct AnimePlaying {
 pub struct AppState {
     pub search_results: Vec<Video>,
 
+    pub home_results: Vec<Video>,
+
     pub history_results: Vec<Video>,
 
     pub current_query: String,

@@ -48,6 +48,9 @@ fn order_key(episode: &Episode) -> Option<f64> {
 /// resolutions ("1080p") are never mistaken for episode numbers.
 pub fn parse_episode_number(title: &str) -> Option<f64> {
     let lower = title.to_ascii_lowercase();
+    if lower.contains("prologue") {
+        return Some(0.0);
+    }
     let bytes = lower.as_bytes();
 
     for marker in ["episode", "ep"] {

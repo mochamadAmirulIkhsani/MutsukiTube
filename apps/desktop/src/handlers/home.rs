@@ -33,6 +33,7 @@ fn load_home(weak: slint::Weak<AppWindow>, context: AppContext) {
             return;
         };
 
+        state.home_topic = String::new();
         state.home_generation = state.home_generation.wrapping_add(1);
         state.home_loading = true;
         state.home_status = "Loading home...".into();
@@ -40,6 +41,7 @@ fn load_home(weak: slint::Weak<AppWindow>, context: AppContext) {
     };
 
     if let Some(ui) = weak.upgrade() {
+        ui.set_home_selected_topic("".into());
         ui.set_home_loading(true);
         ui.set_home_status_text("Loading home...".into());
     }
@@ -99,6 +101,17 @@ fn load_home(weak: slint::Weak<AppWindow>, context: AppContext) {
             if let Ok(mut state) = context.state.lock() {
                 state.home_loading = false;
                 state.home_status = format!("{} videos", explore_items.len());
+                state.home_results = explore.clone();
+                for v in &history {
+                    if !state.history_results.iter().any(|existing| existing.id == v.id) {
+                        state.history_results.push(v.clone());
+                    }
+                }
+                for v in &favorites {
+                    if !state.library_results.iter().any(|existing| existing.id == v.id) {
+                        state.library_results.push(v.clone());
+                    }
+                }
             }
 
             ui.set_home_loading(false);
@@ -111,6 +124,22 @@ fn load_home(weak: slint::Weak<AppWindow>, context: AppContext) {
             queue_thumbnails(
                 explore,
                 ThumbnailTarget::Home,
+                generation,
+                ui.as_weak(),
+                context.state.clone(),
+                handle.clone(),
+            );
+            queue_thumbnails(
+                history,
+                ThumbnailTarget::HomeContinue,
+                generation,
+                ui.as_weak(),
+                context.state.clone(),
+                handle.clone(),
+            );
+            queue_thumbnails(
+                favorites,
+                ThumbnailTarget::HomeFavorites,
                 generation,
                 ui.as_weak(),
                 context.state.clone(),
@@ -173,6 +202,7 @@ fn load_topic(weak: slint::Weak<AppWindow>, context: AppContext, topic: String) 
 
                     if let Ok(mut state) = context.state.lock() {
                         state.home_status = format!("{} videos", items.len());
+                        state.home_results = page.clone();
                     }
 
                     ui.set_home_status_text(format!("{} videos", items.len()).into());
@@ -213,6 +243,7 @@ pub fn register(ui: &AppWindow, context: &AppContext) {
             let topic = topic.trim().to_string();
 
             if topic.is_empty() {
+                load_home(weak.clone(), context.clone());
                 return;
             }
 
