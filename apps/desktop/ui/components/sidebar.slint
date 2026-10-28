@@ -59,6 +59,7 @@ export component Sidebar inherits Rectangle {
     in property <bool> collapsed: false;
 
     callback nav-home();
+    callback nav-trending();
     callback nav-search();
     callback nav-anime();
     callback nav-library();
@@ -101,16 +102,26 @@ export component Sidebar inherits Rectangle {
                     alignment: start;
                     cross-axis-alignment: center;
 
-                    Image {
-                        source: @image-url("../assets/favicon.ico");
-                        width: 20px;
-                        height: 20px;
+                    // Brand Logo/Dot
+                    Rectangle {
+                        width: 22px;
+                        height: 22px;
+                        border-radius: 6px;
+                        background: Theme.accent;
+
+                        Text {
+                            text: "M";
+                            font-size: 13px;
+                            font-weight: 700;
+                            color: #ffffff;
+                            vertical-alignment: center;
+                            horizontal-alignment: center;
+                        }
                     }
 
-                    // Brand Title
                     Text {
                         text: "MutsukiTube";
-                        font-size: 16px;
+                        font-size: 15px;
                         font-weight: 700;
                         color: Theme.text-primary;
                         vertical-alignment: center;
@@ -159,6 +170,14 @@ export component Sidebar inherits Rectangle {
                 collapsed: root.collapsed;
                 active: root.current-page == "youtube-home";
                 clicked => { root.nav-home(); }
+            }
+
+            NavItem {
+                icon: @image-url("../assets/trending.svg");
+                label: "Trending";
+                collapsed: root.collapsed;
+                active: root.current-page == "trending";
+                clicked => { root.nav-trending(); }
             }
 
             NavItem {

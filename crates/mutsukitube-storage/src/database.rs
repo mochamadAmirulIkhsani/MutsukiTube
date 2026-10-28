@@ -77,6 +77,13 @@ pub fn open_connection() -> Result<Connection> {
                 ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS subscriptions (
+            channel_id TEXT PRIMARY KEY,
+            channel_url TEXT NOT NULL,
+            channel_title TEXT NOT NULL,
+            imported_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+
         CREATE INDEX IF NOT EXISTS idx_favorites_added
         ON favorites(added_at DESC);
 
@@ -86,6 +93,9 @@ pub fn open_connection() -> Result<Connection> {
         CREATE INDEX IF NOT EXISTS
             idx_history_last_opened
         ON watch_history(last_opened_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_subscriptions_imported
+        ON subscriptions(imported_at DESC);
         ",
     )?;
 

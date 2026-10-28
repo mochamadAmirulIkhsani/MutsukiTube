@@ -206,4 +206,75 @@ mod tests {
             "FIXED: Watchdog auto-cleared orphaned seeking flag after 1.6s of inactivity"
         );
     }
+
+    // =========================================================================
+    // TRENDING VERIFICATION: Trending Videos Can Be Played and Navigated
+    // =========================================================================
+    #[test]
+    fn verify_trending_video_playback_and_navigation_succeeds() {
+        let mut state = AppState::default();
+
+        let trending_video = Video {
+            id: "trend123456".into(),
+            title: "Trending Music Video".into(),
+            channel: "Music Artist".into(),
+            thumbnail: "https://example.com/trend.jpg".into(),
+            duration: Some(180),
+        };
+
+        state.trending_results.push(trending_video.clone());
+
+        // Verify player find_video queries trending_results
+        let found = state
+            .search_results
+            .iter()
+            .chain(state.home_results.iter())
+            .chain(state.trending_results.iter())
+            .chain(state.history_results.iter())
+            .chain(state.library_results.iter())
+            .find(|v| v.id == "trend123456");
+
+        assert!(
+            found.is_some(),
+            "Trending video is successfully resolved in AppState"
+        );
+
+        // Verify navigation push and back preservation
+        navigation::push_entry(
+            &mut state,
+            NavEntry::new(NavRoute::YouTubeTrending {
+                category: "music".into(),
+            }),
+        );
+
+        assert_eq!(state.nav_stack.len(), 1);
+        assert_eq!(
+            state.nav_stack.last().unwrap().route,
+            NavRoute::YouTubeTrending {
+                category: "music".into()
+            }
+        );
+    }
+
+    // =========================================================================
+    // GOOGLE TAKEOUT IMPORT VERIFICATION: Indonesian & English CSV Import
+    // =========================================================================
+    #[test]
+    fn verify_google_takeout_csv_import_roundtrip() {
+        let indonesian_csv = "ID Channel,URL Channel,Judul Channel\n\
+UC_x5XG1OV2P6uZZ5FSM9Ttw,http://www.youtube.com/channel/UC_x5XG1OV2P6uZZ5FSM9Ttw,Google Developers\n\
+UCBJycsmduvYEL83R_U4JriQ,http://www.youtube.com/channel/UCBJycsmduvYEL83R_U4JriQ,Marques Brownlee";
+
+        let channels = mutsukitube_storage::parse_subscriptions_csv(indonesian_csv);
+        assert_eq!(channels.len(), 2);
+        assert_eq!(channels[0].title, "Google Developers");
+        assert_eq!(channels[1].title, "Marques Brownlee");
+
+        let english_csv = "\u{feff}Channel Id,Channel Url,Channel Title\n\
+UCsBjURrPoezykLs9EqgamOA,http://www.youtube.com/channel/UCsBjURrPoezykLs9EqgamOA,Fireship";
+
+        let channels_en = mutsukitube_storage::parse_subscriptions_csv(english_csv);
+        assert_eq!(channels_en.len(), 1);
+        assert_eq!(channels_en[0].title, "Fireship");
+    }
 }

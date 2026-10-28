@@ -1,6 +1,7 @@
 import {
     Button,
     ComboBox,
+    LineEdit,
     VerticalBox,
     HorizontalBox,
 } from "std-widgets.slint";
@@ -9,9 +10,17 @@ import { Theme } from "../theme.slint";
 export component SettingsPage inherits Rectangle {
     in property <string> provider-mode: "auto";
     in property <string> status-text: "";
+    in property <int> subscriptions-count: 0;
+    in-out property <string> import-file-path: "";
+    in property <string> import-status: "";
+    in property <bool> import-is-error: false;
+    in property <bool> import-loading: false;
 
     callback back();
     callback save-provider(string);
+    callback select-import-file();
+    callback import-subscriptions(string);
+    callback clear-subscriptions();
 
     background: Theme.bg;
 
@@ -45,7 +54,7 @@ export component SettingsPage inherits Rectangle {
             }
         }
 
-        // Cupertino Grouped Settings Card
+        // YouTube Search Provider Card
         Rectangle {
             background: Theme.surface;
             border-radius: Theme.radius;
@@ -124,6 +133,108 @@ export component SettingsPage inherits Rectangle {
                 color: Theme.success;
                 font-size: 13px;
                 font-weight: 500;
+            }
+        }
+
+        // Subscriptions Import Card (Google Takeout)
+        Rectangle {
+            background: Theme.surface;
+            border-radius: Theme.radius;
+            border-width: 1px;
+            border-color: Theme.border;
+
+            VerticalBox {
+                padding: 16px;
+                spacing: 14px;
+
+                HorizontalBox {
+                    alignment: center;
+                    spacing: 8px;
+
+                    Text {
+                        text: "Import YouTube Subscriptions";
+                        color: Theme.text-primary;
+                        font-size: 15px;
+                        font-weight: 600;
+                    }
+
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        background: transparent;
+                    }
+
+                    Text {
+                        text: root.subscriptions-count > 0 ? (root.subscriptions-count + " channels saved") : "No subscriptions imported";
+                        color: root.subscriptions-count > 0 ? Theme.accent : Theme.text-muted;
+                        font-size: 13px;
+                        font-weight: 500;
+                        vertical-alignment: center;
+                    }
+                }
+
+                Text {
+                    text: "Import your subscribed channels directly from Google Takeout (Takeout -> YouTube and YouTube Music -> subscriptions). Supports both English (subscriptions.csv) and Indonesian (langganan.csv).";
+                    color: Theme.text-secondary;
+                    font-size: 13px;
+                    wrap: word-wrap;
+                }
+
+                HorizontalBox {
+                    spacing: 10px;
+                    alignment: center;
+
+                    path-input := LineEdit {
+                        placeholder-text: "Path to subscriptions.csv or langganan.csv";
+                        text: root.import-file-path;
+                        horizontal-stretch: 1;
+                        edited => {
+                            root.import-file-path = self.text;
+                        }
+                    }
+
+                    Button {
+                        text: "Browse...";
+                        clicked => {
+                            root.select-import-file();
+                        }
+                    }
+
+                    Button {
+                        text: root.import-loading ? "Importing..." : "Import CSV";
+                        primary: true;
+                        enabled: !root.import-loading && path-input.text != "";
+                        clicked => {
+                            root.import-subscriptions(path-input.text);
+                        }
+                    }
+                }
+
+                if root.import-status != "": HorizontalBox {
+                    alignment: start;
+
+                    Text {
+                        text: root.import-status;
+                        color: root.import-is-error ? Theme.danger : Theme.success;
+                        font-size: 13px;
+                        font-weight: 500;
+                    }
+                }
+
+                if root.subscriptions-count > 0: HorizontalBox {
+                    alignment: end;
+
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        background: transparent;
+                    }
+
+                    Button {
+                        text: "Clear Subscriptions";
+                        clicked => {
+                            root.clear-subscriptions();
+                        }
+                    }
+                }
             }
         }
 

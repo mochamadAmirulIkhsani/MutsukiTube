@@ -1,6 +1,7 @@
 pub mod anime;
 pub mod database;
 pub mod history;
+pub mod importer;
 pub mod library;
 pub mod settings;
 
@@ -13,6 +14,11 @@ pub use anime::{
 };
 
 pub use history::{clear_history, get_history, save_video};
+
+pub use importer::{
+    SubscribedChannel, clear_subscriptions, get_subscriptions, get_subscriptions_count,
+    import_subscriptions, parse_subscriptions_csv,
+};
 
 pub use settings::{get_provider_mode, set_provider_mode, validate_provider_mode};
 

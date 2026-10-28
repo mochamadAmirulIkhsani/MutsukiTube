@@ -90,4 +90,12 @@ pub struct AppState {
     pub home_loading: bool,
     pub home_status: String,
     pub home_generation: u64,
+
+    // ---- YouTube Trending (Option A) ----------------------------------------
+    pub trending_results: Vec<Video>,
+    pub trending_category: String,
+    pub trending_country: String,
+    pub trending_loading: bool,
+    pub trending_status: String,
+    pub trending_generation: u64,
 }

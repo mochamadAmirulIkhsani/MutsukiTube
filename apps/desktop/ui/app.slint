@@ -2,6 +2,9 @@ import {
     HomePage,
 } from "pages/home-page.slint";
 import {
+    TrendingPage,
+} from "pages/trending-page.slint";
+import {
     SearchPage,
 } from "pages/search-page.slint";
 import {
@@ -80,6 +83,11 @@ export component AppWindow inherits Window {
 
     in-out property <string> provider-mode: "auto";
     in-out property <string> settings-status: "";
+    in-out property <int> subscriptions-count: 0;
+    in-out property <string> import-file-path: "";
+    in-out property <string> import-status: "";
+    in-out property <bool> import-is-error: false;
+    in-out property <bool> import-loading: false;
     in-out property <string> search-query: "";
 
     in-out property <[string]> anime-qualities: ["Auto"];
@@ -141,13 +149,26 @@ export component AppWindow inherits Window {
     in-out property <string> home-status-text: "";
     in-out property <string> home-selected-topic: "";
 
+    // YouTube Trending (Option A)
+    in-out property <[VideoItem]> trending-videos;
+    in-out property <bool> trending-loading: false;
+    in-out property <string> trending-status-text: "";
+    in-out property <string> trending-selected-category: "";
+    in-out property <string> trending-selected-country: "ID";
+
     callback save-provider(string);
+    callback select-import-file();
+    callback import-subscriptions(string);
+    callback clear-subscriptions();
     callback search(string);
     callback open-video(string);
     callback play-video(string);
     callback load-more();
     callback load-home();
     callback load-home-topic(string);
+    callback load-trending();
+    callback load-trending-category(string);
+    callback toggle-trending-country();
 
     callback show-history();
     callback refresh-history();
@@ -193,6 +214,7 @@ export component AppWindow inherits Window {
     callback nav-anime-details(string);
     callback nav-home();
     callback nav-watch();
+    callback nav-trending();
 
     changed current-page => {
         if (root.current-page == "watch") {
@@ -234,6 +256,10 @@ export component AppWindow inherits Window {
 
             nav-home => {
                 root.nav-home();
+            }
+
+            nav-trending => {
+                root.nav-trending();
             }
 
             nav-search => {
@@ -316,6 +342,33 @@ export component AppWindow inherits Window {
 
                 load-more => {
                     root.load-more();
+                }
+            }
+
+            if root.current-page == "trending": TrendingPage {
+                width: parent.width;
+                height: parent.height;
+                videos: root.trending-videos;
+                loading: root.trending-loading;
+                status-text: root.trending-status-text;
+                selected-category: root.trending-selected-category;
+                selected-country: root.trending-selected-country;
+
+                open-video(id) => {
+                    root.open-video(id);
+                }
+
+                select-category(category) => {
+                    root.trending-selected-category = category;
+                    root.load-trending-category(category);
+                }
+
+                toggle-country => {
+                    root.toggle-trending-country();
+                }
+
+                refresh => {
+                    root.load-trending();
                 }
             }
 
@@ -572,6 +625,11 @@ export component AppWindow inherits Window {
                 height: parent.height;
                 provider-mode: root.provider-mode;
                 status-text: root.settings-status;
+                subscriptions-count: root.subscriptions-count;
+                import-file-path <=> root.import-file-path;
+                import-status: root.import-status;
+                import-is-error: root.import-is-error;
+                import-loading: root.import-loading;
 
                 back => {
                     root.nav-back();
@@ -579,6 +637,18 @@ export component AppWindow inherits Window {
 
                 save-provider(mode) => {
                     root.save-provider(mode);
+                }
+
+                select-import-file => {
+                    root.select-import-file();
+                }
+
+                import-subscriptions(path) => {
+                    root.import-subscriptions(path);
+                }
+
+                clear-subscriptions => {
+                    root.clear-subscriptions();
                 }
             }
 

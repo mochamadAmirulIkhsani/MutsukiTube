@@ -16,6 +16,7 @@ pub enum ThumbnailTarget {
     Home,
     HomeContinue,
     HomeFavorites,
+    Trending,
 }
 
 fn get_model(ui: &AppWindow, target: ThumbnailTarget) -> ModelRc<VideoItem> {
@@ -26,6 +27,7 @@ fn get_model(ui: &AppWindow, target: ThumbnailTarget) -> ModelRc<VideoItem> {
         ThumbnailTarget::Home => ui.get_home_videos(),
         ThumbnailTarget::HomeContinue => ui.get_home_continue_videos(),
         ThumbnailTarget::HomeFavorites => ui.get_home_favorite_videos(),
+        ThumbnailTarget::Trending => ui.get_trending_videos(),
     }
 }
 
@@ -87,6 +89,8 @@ pub fn queue_thumbnails(
                                 ThumbnailTarget::Home
                                 | ThumbnailTarget::HomeContinue
                                 | ThumbnailTarget::HomeFavorites => s.home_generation == generation,
+
+                                ThumbnailTarget::Trending => s.trending_generation == generation,
                             })
                             .unwrap_or(false);
 

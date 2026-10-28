@@ -32,6 +32,19 @@ mod tests {
             )
             .unwrap();
     }
+
+    #[test]
+    fn test_ytdl_raw_options() {
+        let player = EmbeddedMpvPlayer::new_headless().unwrap();
+        let cmd_res = player.mpv.command(&[
+            "change-list",
+            "script-opts",
+            "append",
+            "ytdl_hook-ytdl_args=--extractor-args=youtube:player_client=android,ios,web",
+        ]);
+        println!("command change-list script-opts result: {:?}", cmd_res);
+        assert!(cmd_res.is_ok());
+    }
 }
 
 impl EmbeddedMpvPlayer {
@@ -44,6 +57,13 @@ impl EmbeddedMpvPlayer {
             .map_err(|error| error.to_string())?
             .build()
             .map_err(|error| error.to_string())?;
+
+        let _ = mpv.command(&[
+            "change-list",
+            "script-opts",
+            "append",
+            "ytdl_hook-ytdl_args=--extractor-args=youtube:player_client=android,ios,web",
+        ]);
 
         Ok(Self { mpv })
     }
@@ -134,6 +154,13 @@ impl EmbeddedMpvPlayer {
             .map_err(|error| error.to_string())?
             .build()
             .map_err(|error| error.to_string())?;
+
+        let _ = mpv.command(&[
+            "change-list",
+            "script-opts",
+            "append",
+            "ytdl_hook-ytdl_args=--extractor-args=youtube:player_client=android,ios,web",
+        ]);
 
         Ok(Self { mpv })
     }

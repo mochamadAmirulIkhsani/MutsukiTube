@@ -51,6 +51,11 @@ pub fn parse_video_renderer(renderer: &Value) -> Option<Video> {
     let duration_text = renderer
         .get("lengthText")
         .map(extract_text)
+        .or_else(|| {
+            renderer
+                .pointer("/thumbnailOverlays/0/thumbnailOverlayTimeStatusRenderer/text")
+                .map(extract_text)
+        })
         .unwrap_or_default();
 
     Some(Video {
@@ -82,7 +87,11 @@ pub fn parse_duration(text: &str) -> Option<u64> {
 pub fn collect_videos(value: &Value, output: &mut Vec<Video>) {
     match value {
         Value::Object(map) => {
-            if let Some(renderer) = map.get("videoRenderer") {
+            if let Some(renderer) = map
+                .get("videoRenderer")
+                .or_else(|| map.get("gridVideoRenderer"))
+                .or_else(|| map.get("compactVideoRenderer"))
+            {
                 if let Some(video) = parse_video_renderer(renderer) {
                     if !output.iter().any(|existing| existing.id == video.id) {
                         output.push(video);
@@ -194,6 +203,43 @@ mod tests {
         assert_eq!(videos[0].id, "abc123");
         assert_eq!(videos[0].title, "Learn Rust");
         assert_eq!(videos[0].duration, Some(225));
+    }
+
+    #[test]
+    fn grid_video_renderer_parser_works() {
+        let response = json!({
+            "contents": [{
+                "gridVideoRenderer": {
+                    "videoId": "grid789",
+                    "title": {
+                        "simpleText": "Trending Video Title"
+                    },
+                    "shortBylineText": {
+                        "runs": [{"text": "Top Creator"}]
+                    },
+                    "thumbnailOverlays": [{
+                        "thumbnailOverlayTimeStatusRenderer": {
+                            "text": { "simpleText": "10:15" }
+                        }
+                    }],
+                    "thumbnail": {
+                        "thumbnails": [{
+                            "url": "https://example.com/grid_thumb.jpg"
+                        }]
+                    }
+                }
+            }]
+        });
+
+        let mut videos = Vec::new();
+
+        collect_videos(&response, &mut videos);
+
+        assert_eq!(videos.len(), 1);
+        assert_eq!(videos[0].id, "grid789");
+        assert_eq!(videos[0].title, "Trending Video Title");
+        assert_eq!(videos[0].channel, "Top Creator");
+        assert_eq!(videos[0].duration, Some(615));
     }
 
     #[test]

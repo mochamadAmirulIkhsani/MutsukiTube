@@ -11,6 +11,43 @@ impl YtDlpProvider {
     pub fn new() -> Self {
         Self
     }
+
+    pub async fn trending(
+        &self,
+        category: Option<&str>,
+        country: Option<&str>,
+    ) -> Result<Vec<Video>, ProviderError> {
+        let country = country.unwrap_or("ID");
+        let query = crate::native::trending_query(category, country);
+        let search_query = format!("ytsearch24:{query}");
+
+        let output = Command::new("yt-dlp")
+            .args([
+                &search_query,
+                "--dump-json",
+                "--skip-download",
+                "--no-warnings",
+            ])
+            .output()
+            .await
+            .map_err(|error| ProviderError::Other(error.to_string()))?;
+
+        if !output.status.success() {
+            return Err(ProviderError::Other(
+                String::from_utf8_lossy(&output.stderr).to_string(),
+            ));
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        let videos = stdout
+            .lines()
+            .filter_map(|line| serde_json::from_str::<YtDlpVideo>(line).ok())
+            .map(Video::from)
+            .collect();
+
+        Ok(videos)
+    }
 }
 
 impl Default for YtDlpProvider {
