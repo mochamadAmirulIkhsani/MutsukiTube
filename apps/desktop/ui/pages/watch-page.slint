@@ -1,6 +1,5 @@
 
 import {
-    Button,
     Slider,
     VerticalBox,
     HorizontalBox,
@@ -8,6 +7,8 @@ import {
     ScrollView,
     Spinner,
 } from "std-widgets.slint";
+
+import { PrimaryButton, SecondaryButton } from "../components/action-button.slint";
 
 export component WatchPage inherits Rectangle {
     in property <string> video-title;
@@ -27,6 +28,10 @@ export component WatchPage inherits Rectangle {
 
     in property <string> playback-state: "idle";
     in property <bool> fullscreen-mode: false;
+
+    // True while the user is dragging the seek slider or stepping it with the
+    // keyboard. Rust must not overwrite `playback-position` during that window.
+    in-out property <bool> seeking: false;
 
     out property <length> video-surface-x:
         video-surface.absolute-position.x;
@@ -66,8 +71,10 @@ export component WatchPage inherits Rectangle {
         if !root.fullscreen-mode: HorizontalBox {
             spacing: 12px;
 
-            Button {
-                text: "← Back";
+            SecondaryButton {
+                icon: @image-url("../assets/back.svg");
+                label: "Back";
+                min-button-width: 84px;
 
                 clicked => {
                     root.back();
@@ -141,16 +148,16 @@ export component WatchPage inherits Rectangle {
                         alignment: center;
                         spacing: 12px;
 
-                        Button {
-                            text: "Retry";
+                        PrimaryButton {
+                            label: "Retry";
 
                             clicked => {
                                 root.play(root.video-id);
                             }
                         }
 
-                        Button {
-                            text: "Open in Browser";
+                        SecondaryButton {
+                            label: "Open in Browser";
 
                             clicked => {
                                 root.open-in-browser(root.video-id);
@@ -177,7 +184,12 @@ export component WatchPage inherits Rectangle {
                     && root.playback-duration > 0
                     && root.playback-state != "loading";
 
+                changed(value) => {
+                    root.seeking = true;
+                }
+
                 released(value) => {
+                    root.seeking = false;
                     root.seek-playback(value);
                 }
             }
@@ -209,12 +221,15 @@ export component WatchPage inherits Rectangle {
         }
 
         HorizontalBox {
-            spacing: 12px;
+            spacing: 10px;
 
-            Button {
-                text: root.player-paused
-                    ? "▶ Play"
-                    : "⏸ Pause";
+            PrimaryButton {
+                icon: root.player-paused
+                    ? @image-url("../assets/play.svg")
+                    : @image-url("../assets/pause.svg");
+                label: root.player-paused
+                    ? "Play"
+                    : "Pause";
 
                 enabled: root.player-ready;
 
@@ -223,8 +238,9 @@ export component WatchPage inherits Rectangle {
                 }
             }
 
-            Button {
-                text: "■ Stop";
+            SecondaryButton {
+                icon: @image-url("../assets/stop.svg");
+                label: "Stop";
                 enabled: root.player-ready;
 
                 clicked => {
@@ -232,21 +248,26 @@ export component WatchPage inherits Rectangle {
                 }
             }
 
-            Button {
-                text: "↻ Replay";
+            SecondaryButton {
+                icon: @image-url("../assets/replay.svg");
+                label: "Replay";
 
-                enabled: root.playback-state == "finished"
-                    && root.video-id != "";
+                enabled: (root.playback-state == "finished"
+                    || root.playback-state == "stopped")
+                    && root.player-ready;
 
                 clicked => {
                     root.replay();
                 }
             }
 
-            Button {
-                text: root.fullscreen-mode
-                    ? "⤢ Exit Fullscreen"
-                    : "⛶ Fullscreen";
+            SecondaryButton {
+                icon: root.fullscreen-mode
+                    ? @image-url("../assets/exit-fullscreen.svg")
+                    : @image-url("../assets/full-screen.svg");
+                label: root.fullscreen-mode
+                    ? "Exit Fullscreen"
+                    : "Fullscreen";
 
                 enabled: root.player-ready;
 
@@ -325,8 +346,9 @@ export component WatchPage inherits Rectangle {
                 HorizontalBox {
                     spacing: 12px;
 
-                    Button {
-                        text: "Toggle Favorite";
+                    SecondaryButton {
+                        icon: @image-url("../assets/favorite.svg");
+                        label: "Toggle Favorite";
 
                         clicked => {
                             root.toggle-favorite();
@@ -338,8 +360,9 @@ export component WatchPage inherits Rectangle {
                         enabled: root.playlists.length > 0;
                     }
 
-                    Button {
-                        text: "Add to Playlist";
+                    SecondaryButton {
+                        icon: @image-url("../assets/add-playlist.svg");
+                        label: "Add to Playlist";
 
                         enabled: root.playlists.length > 0
                             && playlist-picker.current-value != "";

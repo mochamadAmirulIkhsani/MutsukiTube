@@ -1,0 +1,116 @@
+{
+  "schema": "mutsukitube-manifest-1",
+  "version": "v0.1.0",
+  "generatedAt": "2026-10-17T15:13:47Z",
+  "urlBase": "https://plugins.mutsukitube.internal/v0.1.0",
+  "artifacts": [
+    {
+      "path": "astronime-linux-amd64",
+      "provider": "astronime",
+      "os": "linux",
+      "arch": "amd64",
+      "sha256": "11148aedaa461bbbef94197ed4dc62a4dd876f2dbeb3a7414f6ce13b5348e587",
+      "size": 6983842,
+      "url": "https://plugins.mutsukitube.internal/v0.1.0/astronime-linux-amd64"
+    },
+    {
+      "path": "astronime-windows-amd64.exe",
+      "provider": "astronime",
+      "os": "windows",
+      "arch": "amd64",
+      "sha256": "68d8f43f7caab8d2db64fa0ce0222d06aa70773a5de5433c6da95d7eab60bf6e",
+      "size": 7136768,
+      "url": "https://plugins.mutsukitube.internal/v0.1.0/astronime-windows-amd64.exe"
+    },
+    {
+      "path": "moenime-linux-amd64",
+      "provider": "moenime",
+      "os": "linux",
+      "arch": "amd64",
+      "sha256": "2458fefa33c637a18f18d7aa5e0eaa503a97f78f954a6fd615bcbef32905661b",
+      "size": 6967458,
+      "url": "https://plugins.mutsukitube.internal/v0.1.0/moenime-linux-amd64"
+    },
+    {
+      "path": "moenime-windows-amd64.exe",
+      "provider": "moenime",
+      "os": "windows",
+      "arch": "amd64",
+      "sha256": "2c0866d14300fd7367f16aaadcca4fdc11213611651a76b6a4e9c293cbac0cfb",
+      "size": 7117312,
+      "url": "https://plugins.mutsukitube.internal/v0.1.0/moenime-windows-amd64.exe"
+    },
+    {
+      "path": "nimegami-linux-amd64",
+      "provider": "nimegami",
+      "os": "linux",
+      "arch": "amd64",
+      "sha256": "6b0943c8b2f8dfaec6642e3802b60766bb5bdbb5a194c5dea8afe788b1b068b1",
+      "size": 7045282,
+      "url": "https://plugins.mutsukitube.internal/v0.1.0/nimegami-linux-amd64"
+    },
+    {
+      "path": "nimegami-windows-amd64.exe",
+      "provider": "nimegami",
+      "os": "windows",
+      "arch": "amd64",
+      "sha256": "8b4067e5dacf75fc1433974b3c0ad12ec3e197ce6748ce0e6d4b85380f8ee190",
+      "size": 7199744,
+      "url": "https://plugins.mutsukitube.internal/v0.1.0/nimegami-windows-amd64.exe"
+    },
+    {
+      "path": "otakudesu-linux-amd64",
+      "provider": "otakudesu",
+      "os": "linux",
+      "arch": "amd64",
+      "sha256": "ab63fbb95069deacbf2eb6ca010f233be5682685d01081c594ef29546b5891af",
+      "size": 7012514,
+      "url": "https://plugins.mutsukitube.internal/v0.1.0/otakudesu-linux-amd64"
+    },
+    {
+      "path": "otakudesu-windows-amd64.exe",
+      "provider": "otakudesu",
+      "os": "windows",
+      "arch": "amd64",
+      "sha256": "3c6ee9ea93ff2987c2ce627abc7e787c6eea66cc0a24935291024540f02cc2d4",
+      "size": 7164416,
+      "url": "https://plugins.mutsukitube.internal/v0.1.0/otakudesu-windows-amd64.exe"
+    },
+    {
+      "path": "samehadaku-linux-amd64",
+      "provider": "samehadaku",
+      "os": "linux",
+      "arch": "amd64",
+      "sha256": "707660f290a31710b80af41f53ee8fccc6dfaf7c5596bb91cd45ef6d2a512910",
+      "size": 7024802,
+      "url": "https://plugins.mutsukitube.internal/v0.1.0/samehadaku-linux-amd64"
+    },
+    {
+      "path": "samehadaku-windows-amd64.exe",
+      "provider": "samehadaku",
+      "os": "windows",
+      "arch": "amd64",
+      "sha256": "a5f633ace07427bbde497cd7585d32e245d00cd515f7c61964bb0798f9e70cfd",
+      "size": 7177216,
+      "url": "https://plugins.mutsukitube.internal/v0.1.0/samehadaku-windows-amd64.exe"
+    },
+    {
+      "path": "ylnime-linux-amd64",
+      "provider": "ylnime",
+      "os": "linux",
+      "arch": "amd64",
+      "sha256": "1a6fa6ab066a0b0c9c81918e482e709c3b14224bb5662bbb29a2599a68f3ccf3",
+      "size": 6979746,
+      "url": "https://plugins.mutsukitube.internal/v0.1.0/ylnime-linux-amd64"
+    },
+    {
+      "path": "ylnime-windows-amd64.exe",
+      "provider": "ylnime",
+      "os": "windows",
+      "arch": "amd64",
+      "sha256": "d62763f6cb5e2e9ad00ca057209d3db92b848f66c39fb094c7a9b8f228326173",
+      "size": 7131136,
+      "url": "https://plugins.mutsukitube.internal/v0.1.0/ylnime-windows-amd64.exe"
+    }
+  ]
+}

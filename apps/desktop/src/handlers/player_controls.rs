@@ -2,7 +2,9 @@ use std::{cell::Cell, cell::RefCell, rc::Rc};
 
 use slint::ComponentHandle;
 
-use crate::{AppWindow, native_window::session::NativeVideoSession};
+use crate::{
+    AppWindow, native_window::session::NativeVideoSession, player_controller::PlaybackState,
+};
 
 pub fn register(ui: &AppWindow, session: Rc<RefCell<NativeVideoSession>>) {
     {
@@ -10,6 +12,37 @@ pub fn register(ui: &AppWindow, session: Rc<RefCell<NativeVideoSession>>) {
         let weak = ui.as_weak();
 
         ui.on_toggle_playback(move || {
+            let is_stopped_or_finished = {
+                let state = session.borrow().controller.playback_state();
+                matches!(state, PlaybackState::Stopped | PlaybackState::Finished)
+            };
+
+            if is_stopped_or_finished {
+                let result = session.borrow_mut().controller.replay();
+
+                match result {
+                    Ok(()) => {
+                        if let Some(ui) = weak.upgrade() {
+                            ui.set_playback_state("loading".into());
+                            ui.set_player_paused(false);
+                            ui.set_playback_position(0.0);
+                        }
+
+                        println!("[MutsukiTube] Playback resumed from stopped/finished state");
+                    }
+
+                    Err(error) => {
+                        eprintln!("[MutsukiTube] Play error after stop: {error}");
+
+                        if let Some(ui) = weak.upgrade() {
+                            ui.set_playback_state("error".into());
+                        }
+                    }
+                }
+
+                return;
+            }
+
             let result = session.borrow().controller.toggle_pause();
 
             match result {
@@ -40,6 +73,8 @@ pub fn register(ui: &AppWindow, session: Rc<RefCell<NativeVideoSession>>) {
                     if let Some(ui) = weak.upgrade() {
                         ui.set_player_paused(true);
                         ui.set_playback_position(0.0);
+                        ui.set_playback_duration(0.0);
+                        ui.set_playback_state("stopped".into());
                     }
                 }
 
@@ -59,6 +94,9 @@ pub fn register(ui: &AppWindow, session: Rc<RefCell<NativeVideoSession>>) {
 
             if !seconds.is_finite() || seconds < 0.0 {
                 eprintln!("[MutsukiTube] Invalid seek position: {seconds}");
+                if let Some(ui) = weak.upgrade() {
+                    ui.set_timeline_seek_active(false);
+                }
                 return;
             }
 
@@ -66,6 +104,9 @@ pub fn register(ui: &AppWindow, session: Rc<RefCell<NativeVideoSession>>) {
 
             if !duration.is_finite() || duration <= 0.0 {
                 eprintln!("[MutsukiTube] Cannot seek: invalid duration");
+                if let Some(ui) = weak.upgrade() {
+                    ui.set_timeline_seek_active(false);
+                }
                 return;
             }
 
@@ -78,6 +119,7 @@ pub fn register(ui: &AppWindow, session: Rc<RefCell<NativeVideoSession>>) {
             match result {
                 Ok(()) => {
                     if let Some(ui) = weak.upgrade() {
+                        ui.set_timeline_seek_active(false);
                         ui.set_playback_position(target as f32);
                     }
 
@@ -86,6 +128,9 @@ pub fn register(ui: &AppWindow, session: Rc<RefCell<NativeVideoSession>>) {
 
                 Err(error) => {
                     eprintln!("[MutsukiTube] Seek error: {error}");
+                    if let Some(ui) = weak.upgrade() {
+                        ui.set_timeline_seek_active(false);
+                    }
                 }
             }
         });
@@ -164,7 +209,8 @@ pub fn register(ui: &AppWindow, session: Rc<RefCell<NativeVideoSession>>) {
                 return;
             };
 
-            if ui.get_playback_state().as_str() != "finished" {
+            let state = ui.get_playback_state();
+            if state.as_str() != "finished" && state.as_str() != "stopped" {
                 return;
             }
 
@@ -173,6 +219,7 @@ pub fn register(ui: &AppWindow, session: Rc<RefCell<NativeVideoSession>>) {
             match result {
                 Ok(()) => {
                     ui.set_playback_state("loading".into());
+                    ui.set_player_paused(false);
                     ui.set_playback_position(0.0);
 
                     println!("[MutsukiTube] Replay requested");

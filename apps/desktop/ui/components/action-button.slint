@@ -1,0 +1,117 @@
+import { Theme } from "../theme.slint";
+
+// Modern MutsukiTube action controls.
+//
+// One shared surface defines the visual language (height, radius, hover,
+// pressed, focus, disabled, subtle motion); the exported variants only choose
+// colors and emphasis, so the Anime UI never grows five copies of the same
+// styling. Every variant forwards a real `clicked` callback — no decorative
+// buttons.
+
+component ActionButtonBase inherits Rectangle {
+    in property <string> label: "";
+    in property <image> icon;
+    in property <bool> enabled: true;
+
+    in property <color> fill: Theme.surface;
+    in property <color> fill-hover: Theme.surface-hover;
+    in property <color> fill-pressed: Theme.surface-hover;
+    in property <color> stroke: transparent;
+    in property <color> label-color: Theme.text-primary;
+    in property <length> min-button-width: 96px;
+
+    callback clicked();
+
+    min-width: root.min-button-width;
+    height: Theme.control-height;
+    border-radius: Theme.control-radius;
+    opacity: root.enabled ? 1.0 : 0.45;
+    forward-focus: focus-scope;
+
+    background: !root.enabled
+        ? root.fill
+        : (touch-area.pressed
+            ? root.fill-pressed
+            : (touch-area.has-hover ? root.fill-hover : root.fill));
+
+    border-width: focus-scope.has-focus ? 2px : (root.stroke == transparent ? 0px : 1px);
+    border-color: focus-scope.has-focus ? Theme.accent : root.stroke;
+
+    animate background { duration: 90ms; }
+
+    focus-scope := FocusScope {
+        x: 0px;
+        width: 0px; // Do not react on clicks
+        enabled: root.enabled;
+
+        key-pressed(event) => {
+            if (event.text == Key.Space || event.text == Key.Return) {
+                touch-area.clicked();
+                return accept;
+            }
+            reject
+        }
+    }
+
+    touch-area := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        spacing: 8px;
+        alignment: center;
+        cross-axis-alignment: center;
+
+        if root.icon.width > 0: Image {
+            source: root.icon;
+            width: 16px;
+            height: 16px;
+            image-fit: contain;
+            colorize: root.label-color;
+            cross-axis-self-alignment: center;
+        }
+
+        if root.label != "": Text {
+            text: root.label;
+            color: root.label-color;
+            font-size: 14px;
+            font-weight: 600;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+            cross-axis-self-alignment: center;
+            overflow: elide;
+        }
+    }
+}
+
+/// Visually dominant action (Play / Resume). One per view.
+export component PrimaryButton inherits ActionButtonBase {
+    fill: Theme.accent;
+    fill-hover: Theme.accent-hover;
+    fill-pressed: Theme.accent-hover;
+    label-color: Theme.text-primary;
+    min-button-width: 120px;
+}
+
+/// Standard secondary action (Back, Search, Stop/Replay, ...).
+export component SecondaryButton inherits ActionButtonBase {
+    fill: Theme.surface;
+    fill-hover: Theme.surface-hover;
+    fill-pressed: Theme.surface-hover;
+    stroke: Theme.border;
+    label-color: Theme.text-primary;
+}
+
+/// Secondary action that keeps a persistent on/off state (Favorite).
+export component ToggleButton inherits ActionButtonBase {
+    in property <bool> selected: false;
+
+    fill: root.selected ? Theme.accent-soft : Theme.surface;
+    fill-hover: root.selected ? Theme.accent-soft : Theme.surface-hover;
+    fill-pressed: Theme.accent-soft;
+    stroke: root.selected ? Theme.accent : Theme.border;
+    label-color: root.selected ? Theme.accent : Theme.text-primary;
+}

@@ -1,0 +1,115 @@
+import { Theme } from "../theme.slint";
+
+export struct AnimeCard {
+    key: string,
+    provider-id: string,
+    url: string,
+    title: string,
+    subtitle: string,
+    badge: string,
+    progress: float,
+    has-poster: bool,
+    poster: image,
+}
+
+export component AnimePosterCard inherits Rectangle {
+    in property <AnimeCard> card;
+    in property <bool> selected: false;
+
+    callback clicked(string);
+
+    width: Theme.poster-width;
+    height: Theme.poster-height + 46px;
+    background: transparent;
+
+    touch := TouchArea {
+        clicked => { root.clicked(root.card.key); }
+    }
+
+    VerticalLayout {
+        spacing: 8px;
+
+        Rectangle {
+            height: Theme.poster-height;
+            border-radius: Theme.radius;
+            clip: true;
+
+            background: touch.has-hover || root.selected
+                ? Theme.surface-hover
+                : Theme.surface;
+
+            border-width: root.selected ? 2px : 1px;
+            border-color: root.selected
+                ? Theme.accent
+                : (touch.has-hover ? Theme.border-strong : Theme.border);
+
+            Image {
+                source: root.card.poster;
+                width: 100%;
+                height: 100%;
+                image-fit: cover;
+            }
+
+            if !root.card.has-poster: Text {
+                text: root.card.title;
+                color: Theme.text-muted;
+                font-size: 13px;
+                wrap: word-wrap;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            // Optional metadata badge (e.g. "EP 12", "2023"); only shown when data exists.
+            if root.card.badge != "": Rectangle {
+                x: 6px;
+                y: 6px;
+                height: 22px;
+                width: badge-text.preferred-width + 16px;
+                border-radius: Theme.radius-sm;
+                background: #000000cc;
+
+                badge-text := Text {
+                    text: root.card.badge;
+                    color: Theme.text-primary;
+                    font-size: 12px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-alignment: center;
+                }
+            }
+
+            // Continue Watching progress; only drawn from real local state.
+            if root.card.progress > 0.001: Rectangle {
+                y: parent.height - 5px;
+                height: 5px;
+                width: parent.width;
+                background: #00000088;
+
+                Rectangle {
+                    height: parent.height;
+                    width: parent.width * Math.min(root.card.progress, 1.0);
+                    background: Theme.accent;
+                }
+            }
+        }
+
+        Text {
+            text: root.card.title;
+            color: root.selected ? Theme.accent : Theme.text-primary;
+            font-size: 13px;
+            font-weight: 600;
+            wrap: word-wrap;
+            max-lines: 2;
+            overflow: elide;
+        }
+
+        if root.card.subtitle != "": Text {
+            text: root.card.subtitle;
+            color: Theme.text-muted;
+            font-size: 12px;
+            wrap: word-wrap;
+            max-lines: 1;
+            overflow: elide;
+        }
+    }
+}

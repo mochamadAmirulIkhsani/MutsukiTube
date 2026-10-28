@@ -12,6 +12,28 @@ pub enum EmbeddedPlaybackEvent {
     Error,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn load_without_headers_does_not_return_invalid_parameter() {
+        let player = EmbeddedMpvPlayer::new_headless().unwrap();
+        player.load("https://example.com/video.mp4").unwrap();
+    }
+
+    #[test]
+    fn load_with_headers_does_not_return_invalid_parameter() {
+        let player = EmbeddedMpvPlayer::new_headless().unwrap();
+        player
+            .load_with_headers(
+                "https://example.com/video.mp4",
+                &[("Referer".to_string(), "https://example.com/".to_string())],
+            )
+            .unwrap();
+    }
+}
+
 impl EmbeddedMpvPlayer {
     pub fn new_headless() -> Result<Self, String> {
         let mpv = Mpv::builder()
@@ -27,8 +49,31 @@ impl EmbeddedMpvPlayer {
     }
 
     pub fn load(&self, url: &str) -> Result<(), String> {
+        self.load_with_headers(url, &[])
+    }
+
+    pub fn load_with_headers(&self, url: &str, headers: &[(String, String)]) -> Result<(), String> {
+        if headers.is_empty() {
+            return self
+                .mpv
+                .command(&["loadfile", url, "replace"])
+                .map_err(|error| error.to_string());
+        }
+
+        let header_fields = headers
+            .iter()
+            .map(|(key, value)| format!("{key}: {value}"))
+            .collect::<Vec<_>>()
+            .join(",");
+
         self.mpv
-            .command(&["loadfile", url, "replace"])
+            .command(&[
+                "loadfile",
+                url,
+                "replace",
+                "-1",
+                &format!("http-header-fields={header_fields}"),
+            ])
             .map_err(|error| error.to_string())
     }
 
@@ -115,6 +160,15 @@ impl EmbeddedMpvPlayer {
         self.mpv
             .get_property::<f64>("volume")
             .map_err(|error| error.to_string())
+    }
+
+    /// Discard every queued libmpv event without translating it.
+    ///
+    /// Called right before `loadfile replace` so a `FileLoaded` that libmpv
+    /// queued for the outgoing file cannot be mistaken for the incoming file's
+    /// load (which would expose the previous media's duration prematurely).
+    pub fn drain_events(&self) {
+        while self.mpv.poll_event().is_some() {}
     }
 
     pub fn poll_events(&self) -> Vec<EmbeddedPlaybackEvent> {

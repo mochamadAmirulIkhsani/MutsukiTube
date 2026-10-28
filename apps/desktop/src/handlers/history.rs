@@ -11,7 +11,7 @@ use crate::{
     ui_models::video_to_ui,
 };
 
-fn load_history(weak: slint::Weak<AppWindow>, context: AppContext) {
+pub fn load_history(weak: slint::Weak<AppWindow>, context: AppContext) {
     let generation = {
         let Ok(mut state) = context.state.lock() else {
             return;

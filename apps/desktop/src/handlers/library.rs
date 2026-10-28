@@ -27,7 +27,7 @@ fn find_video(state: &AppState, video_id: &str) -> Option<Video> {
         .cloned()
 }
 
-fn refresh_library(
+pub fn refresh_library(
     weak: slint::Weak<AppWindow>,
     context: AppContext,
     mode: String,

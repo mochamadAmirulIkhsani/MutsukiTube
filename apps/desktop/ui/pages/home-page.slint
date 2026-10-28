@@ -1,0 +1,326 @@
+import {
+    Button,
+    LineEdit,
+    ScrollView,
+    Spinner,
+    VerticalBox,
+    HorizontalBox,
+} from "std-widgets.slint";
+
+import { VideoCard, VideoItem } from "../components/video-card.slint";
+import { Theme } from "../theme.slint";
+import {
+    PrimaryButton,
+    SecondaryButton,
+    ToggleButton,
+} from "../components/action-button.slint";
+
+export component HomePage inherits Rectangle {
+    in property <[VideoItem]> videos;
+    in property <[VideoItem]> continue-videos;
+    in property <[VideoItem]> favorite-videos;
+    in property <[string]> playlist-names;
+
+    in property <bool> home-loading: false;
+    in property <string> home-status-text: "";
+    in property <string> selected-topic: "";
+    in property <bool> load-more-enabled: false;
+
+    callback search(string);
+    callback open-video(string);
+    callback show-history();
+    callback show-settings();
+    callback show-library();
+    callback show-favorites();
+    callback show-anime();
+    callback select-topic(string);
+    callback load-more();
+
+    background: Theme.bg;
+
+    VerticalBox {
+        spacing: 0px;
+
+        // ---------------------------------------------------------------- header
+        Rectangle {
+            height: 64px;
+            background: Theme.surface-sunken;
+
+            HorizontalBox {
+                padding-left: 20px;
+                padding-right: 20px;
+                spacing: 14px;
+                alignment: center;
+
+                SecondaryButton {
+                    label: "MutsukiTube";
+                    min-button-width: 100px;
+                    enabled: false;
+                }
+
+                search-box := LineEdit {
+                    placeholder-text: "Search YouTube...";
+                    min-width: 320px;
+                    accepted => {
+                        root.search(search-box.text);
+                    }
+                }
+
+                SecondaryButton {
+                    label: "Search";
+                    min-button-width: 88px;
+                    enabled: !root.home-loading && search-box.text != "";
+                    clicked => {
+                        root.search(search-box.text);
+                    }
+                }
+
+                Rectangle {
+                    horizontal-stretch: 1;
+                    background: transparent;
+                }
+
+                SecondaryButton {
+                    label: "History";
+                    min-button-width: 88px;
+                    clicked => {
+                        root.show-history();
+                    }
+                }
+
+                SecondaryButton {
+                    label: "Favorites";
+                    min-button-width: 88px;
+                    clicked => {
+                        root.show-favorites();
+                    }
+                }
+
+                SecondaryButton {
+                    label: "Anime";
+                    min-button-width: 88px;
+                    clicked => {
+                        root.show-anime();
+                    }
+                }
+            }
+        }
+
+        // ------------------------------------------------------------ status bar
+        if root.home-loading || root.home-status-text != "": Rectangle {
+            height: 34px;
+            background: Theme.bg;
+
+            HorizontalBox {
+                padding-left: 20px;
+                padding-right: 20px;
+                spacing: 10px;
+                alignment: center;
+
+                if root.home-loading: Spinner {
+                    width: 16px;
+                    height: 16px;
+                }
+
+                Text {
+                    text: root.home-loading ? "Loading..." : root.home-status-text;
+                    color: Theme.text-secondary;
+                    font-size: 13px;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        // ------------------------------------------------------------------- body
+        ScrollView {
+            vertical-stretch: 1;
+            horizontal-scrollbar-policy: always-off;
+            vertical-scrollbar-policy: as-needed;
+
+            VerticalBox {
+                padding: 22px;
+                spacing: 26px;
+
+                // ------------------------------------------------------- topic chips
+                HorizontalBox {
+                    spacing: 10px;
+
+                    Text {
+                        text: "Explore";
+                        color: Theme.text-primary;
+                        font-size: 20px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        background: transparent;
+                    }
+
+                    topic-chip := ToggleButton {
+                        label: "All";
+                        selected: root.selected-topic == "";
+                        min-button-width: 64px;
+                        clicked => {
+                            root.select-topic("");
+                        }
+                    }
+
+                    for topic in ["Music", "Gaming", "Technology", "Podcasts", "Education"]: ToggleButton {
+                        label: topic;
+                        selected: root.selected-topic == topic;
+                        min-button-width: 96px;
+                        clicked => {
+                            root.select-topic(topic);
+                        }
+                    }
+                }
+
+                // ------------------------------------------------- continue watching
+                if root.continue-videos.length > 0: VerticalBox {
+                    spacing: 12px;
+
+                    Text {
+                        text: "Continue Watching";
+                        color: Theme.text-primary;
+                        font-size: 20px;
+                        font-weight: 700;
+                    }
+
+                    ScrollView {
+                        horizontal-stretch: 1;
+                        max-height: 340px;
+                        horizontal-scrollbar-policy: always-off;
+                        vertical-scrollbar-policy: as-needed;
+
+                        HorizontalBox {
+                            spacing: 16px;
+
+                            for video in root.continue-videos: VideoCard {
+                                video: video;
+                                min-width: 300px;
+                                clicked(id) => {
+                                    root.open-video(id);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --------------------------------------------------------- favorites
+                if root.favorite-videos.length > 0: VerticalBox {
+                    spacing: 12px;
+
+                    Text {
+                        text: "Favorites";
+                        color: Theme.text-primary;
+                        font-size: 20px;
+                        font-weight: 700;
+                    }
+
+                    ScrollView {
+                        horizontal-stretch: 1;
+                        max-height: 340px;
+                        horizontal-scrollbar-policy: always-off;
+                        vertical-scrollbar-policy: as-needed;
+
+                        HorizontalBox {
+                            spacing: 16px;
+
+                            for video in root.favorite-videos: VideoCard {
+                                video: video;
+                                min-width: 300px;
+                                clicked(id) => {
+                                    root.open-video(id);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ---------------------------------------------------------- explore
+                Text {
+                    text: root.selected-topic == ""
+                        ? "Explore"
+                        : ("Explore · " + root.selected-topic);
+                    color: Theme.text-primary;
+                    font-size: 20px;
+                    font-weight: 700;
+                }
+
+                if root.home-status-text != "" && root.videos.length == 0: Text {
+                    text: root.home-status-text;
+                    color: Theme.text-secondary;
+                    font-size: 14px;
+                }
+
+                if root.videos.length > 0: ScrollView {
+                    horizontal-stretch: 1;
+                    max-height: 520px;
+                    horizontal-scrollbar-policy: always-off;
+                    vertical-scrollbar-policy: as-needed;
+
+                    HorizontalBox {
+                        spacing: 16px;
+
+                        for video in root.videos: VideoCard {
+                            video: video;
+                            min-width: 300px;
+                            clicked(id) => {
+                                root.open-video(id);
+                            }
+                        }
+
+                        if root.load-more-enabled: SecondaryButton {
+                            label: "Load More";
+                            min-button-width: 100px;
+                            clicked => {
+                                root.load-more();
+                            }
+                        }
+                    }
+                }
+
+                // ---------------------------------------------------------- empty
+                if root.continue-videos.length == 0
+                    && root.favorite-videos.length == 0
+                    && root.videos.length == 0
+                    && !root.home-loading: Rectangle {
+                    background: transparent;
+                    height: 400px;
+
+                    VerticalBox {
+                        alignment: center;
+                        spacing: 12px;
+
+                        Text {
+                            text: "Start exploring";
+                            color: Theme.text-primary;
+                            font-size: 22px;
+                            font-weight: 700;
+                            horizontal-alignment: center;
+                        }
+
+                        Text {
+                            text: "Pick a topic above or search for a video to begin browsing.";
+                            color: Theme.text-secondary;
+                            font-size: 14px;
+                            horizontal-alignment: center;
+                            width: 520px;
+                            wrap: word-wrap;
+                        }
+
+                        SecondaryButton {
+                            label: "Browse Topics";
+                            min-button-width: 120px;
+                            clicked => {
+                                root.select-topic("Music");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
