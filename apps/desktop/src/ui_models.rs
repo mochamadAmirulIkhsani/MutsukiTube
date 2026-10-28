@@ -41,11 +41,18 @@ pub fn compute_initials(title: &str) -> String {
     }
 }
 
-pub fn channel_to_ui(channel: &mutsukitube_storage::SubscribedChannel) -> ChannelItem {
+pub fn channel_to_ui(
+    channel: &mutsukitube_storage::SubscribedChannel,
+    avatar: slint::Image,
+) -> ChannelItem {
+    let size = avatar.size();
+    let has_avatar = size.width > 0 && size.height > 0;
     ChannelItem {
         id: channel.id.clone().into(),
         url: channel.url.clone().into(),
         title: channel.title.clone().into(),
         initials: compute_initials(&channel.title).into(),
+        avatar,
+        has_avatar,
     }
 }

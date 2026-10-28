@@ -9,7 +9,7 @@ use slint::{ComponentHandle, Model, ModelRc, VecModel};
 use crate::{
     AppWindow, VideoItem,
     app_context::AppContext,
-    thumbnail_ui::{ThumbnailTarget, queue_thumbnails},
+    thumbnail_ui::{AvatarTarget, ThumbnailTarget, queue_channel_avatars, queue_thumbnails},
     ui_models::video_to_ui,
 };
 
@@ -112,7 +112,7 @@ fn load_home(weak: slint::Weak<AppWindow>, context: AppContext) {
             let sub_items: Vec<crate::ChannelItem> = subscriptions
                 .iter()
                 .take(20)
-                .map(crate::ui_models::channel_to_ui)
+                .map(|c| crate::ui_models::channel_to_ui(c, slint::Image::default()))
                 .collect();
 
             if let Ok(mut state) = context.state.lock() {
@@ -158,6 +158,14 @@ fn load_home(weak: slint::Weak<AppWindow>, context: AppContext) {
             queue_thumbnails(
                 favorites,
                 ThumbnailTarget::HomeFavorites,
+                generation,
+                ui.as_weak(),
+                context.state.clone(),
+                handle.clone(),
+            );
+            queue_channel_avatars(
+                subscriptions,
+                AvatarTarget::Home,
                 generation,
                 ui.as_weak(),
                 context.state.clone(),

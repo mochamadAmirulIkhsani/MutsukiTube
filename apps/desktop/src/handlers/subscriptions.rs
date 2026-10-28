@@ -12,7 +12,7 @@ use crate::{
     AppWindow, ChannelItem, VideoItem,
     app_context::AppContext,
     navigation,
-    thumbnail_ui::{ThumbnailTarget, queue_thumbnails},
+    thumbnail_ui::{AvatarTarget, ThumbnailTarget, queue_channel_avatars, queue_thumbnails},
     ui_models::{channel_to_ui, video_to_ui},
 };
 
@@ -94,7 +94,7 @@ pub fn load_subscriptions(weak: slint::Weak<AppWindow>, context: AppContext) {
 
             let items: Vec<ChannelItem> = filtered_channels
                 .iter()
-                .map(channel_to_ui)
+                .map(|c| channel_to_ui(c, slint::Image::default()))
                 .collect();
 
             if let Ok(mut state) = context.state.lock() {
@@ -108,6 +108,15 @@ pub fn load_subscriptions(weak: slint::Weak<AppWindow>, context: AppContext) {
             ui.set_subscriptions_count(channels.len() as i32);
             ui.set_subscriptions_status_text(format!("{} channels", channels.len()).into());
             replace_subscriptions_channels(&ui, items);
+
+            queue_channel_avatars(
+                channels,
+                AvatarTarget::Subscriptions,
+                generation,
+                ui.as_weak(),
+                context.state.clone(),
+                context.handle.clone(),
+            );
         });
     });
 }
@@ -133,8 +142,26 @@ pub fn filter_subscriptions(weak: slint::Weak<AppWindow>, context: AppContext, q
                 .collect()
         };
 
-        let items: Vec<ChannelItem> = filtered.iter().map(channel_to_ui).collect();
+        let items: Vec<ChannelItem> = filtered
+            .iter()
+            .map(|c| channel_to_ui(c, slint::Image::default()))
+            .collect();
         replace_subscriptions_channels(&ui, items);
+
+        let generation = context
+            .state
+            .lock()
+            .map(|s| s.subscriptions_generation)
+            .unwrap_or(0);
+
+        queue_channel_avatars(
+            filtered,
+            AvatarTarget::Subscriptions,
+            generation,
+            ui.as_weak(),
+            context.state.clone(),
+            context.handle.clone(),
+        );
     }
 }
 
@@ -355,3 +382,4 @@ fn register_channel_remove(ui: &AppWindow, context: &AppContext) {
         remove_channel(weak.clone(), context.clone(), id.to_string());
     });
 }
+

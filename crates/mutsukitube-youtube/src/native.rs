@@ -11,6 +11,7 @@ use crate::{
 };
 
 const SEARCH_ENDPOINT: &str = "https://www.youtube.com/youtubei/v1/search?prettyPrint=false";
+const BROWSE_ENDPOINT: &str = "https://www.youtube.com/youtubei/v1/browse?prettyPrint=false";
 
 const DEFAULT_WEB_VERSION: &str = "2.20261002.01.00";
 
@@ -197,6 +198,55 @@ impl NativeYoutubeProvider {
         collect_videos(&data, &mut videos);
 
         Ok(videos)
+    }
+
+    pub async fn channel_avatar(&self, channel_id: &str) -> Result<Option<String>, ProviderError> {
+        let body = json!({
+            "context": {
+                "client": {
+                    "clientName": "WEB",
+                    "clientVersion": self.client_version,
+                    "hl": "en",
+                    "gl": "US"
+                }
+            },
+            "browseId": channel_id
+        });
+
+        let response = self
+            .client
+            .post(BROWSE_ENDPOINT)
+            .header("X-YouTube-Client-Name", "1")
+            .header("X-YouTube-Client-Version", &self.client_version)
+            .header("Origin", "https://www.youtube.com")
+            .header("Referer", "https://www.youtube.com/")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|error| ProviderError::Network(error.to_string()))?;
+
+        if !response.status().is_success() {
+            return Ok(None);
+        }
+
+        let data: Value = response
+            .json()
+            .await
+            .map_err(|error| ProviderError::Parse(error.to_string()))?;
+
+        let raw_url = data
+            .pointer("/metadata/channelMetadataRenderer/avatar/thumbnails/0/url")
+            .and_then(|v| v.as_str());
+
+        let avatar_url = raw_url.map(|u| {
+            if u.starts_with("//") {
+                format!("https:{u}")
+            } else {
+                u.to_string()
+            }
+        });
+
+        Ok(avatar_url)
     }
 }
 

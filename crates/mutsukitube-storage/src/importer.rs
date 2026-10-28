@@ -5,6 +5,7 @@ pub struct SubscribedChannel {
     pub id: String,
     pub url: String,
     pub title: String,
+    pub avatar_url: Option<String>,
 }
 
 fn split_csv_line(line: &str) -> Vec<String> {
@@ -57,6 +58,7 @@ pub fn parse_subscriptions_csv(content: &str) -> Vec<SubscribedChannel> {
                 id: channel_id.clone(),
                 url: channel_url.clone(),
                 title: channel_title.clone(),
+                avatar_url: None,
             });
         }
     }
@@ -91,7 +93,7 @@ pub fn import_subscriptions(channels: &[SubscribedChannel]) -> rusqlite::Result<
 pub fn get_subscriptions() -> rusqlite::Result<Vec<SubscribedChannel>> {
     let connection = open_connection()?;
     let mut stmt = connection.prepare(
-        "SELECT channel_id, channel_url, channel_title 
+        "SELECT channel_id, channel_url, channel_title, avatar_url 
          FROM subscriptions 
          ORDER BY channel_title COLLATE NOCASE ASC",
     )?;
@@ -101,6 +103,7 @@ pub fn get_subscriptions() -> rusqlite::Result<Vec<SubscribedChannel>> {
             id: row.get(0)?,
             url: row.get(1)?,
             title: row.get(2)?,
+            avatar_url: row.get(3).ok(),
         })
     })?;
 
@@ -110,6 +113,16 @@ pub fn get_subscriptions() -> rusqlite::Result<Vec<SubscribedChannel>> {
     }
 
     Ok(result)
+}
+
+/// Update the cached avatar URL for a channel.
+pub fn update_channel_avatar(channel_id: &str, avatar_url: &str) -> rusqlite::Result<()> {
+    let connection = open_connection()?;
+    connection.execute(
+        "UPDATE subscriptions SET avatar_url = ?1 WHERE channel_id = ?2",
+        (avatar_url, channel_id),
+    )?;
+    Ok(())
 }
 
 /// Retrieve the total number of imported subscriptions.
@@ -152,12 +165,17 @@ pub fn is_subscribed(channel_id: &str) -> rusqlite::Result<bool> {
 }
 
 /// Add or update a single subscribed channel.
-pub fn add_subscription(id: &str, url: &str, title: &str) -> rusqlite::Result<()> {
+pub fn add_subscription(
+    id: &str,
+    url: &str,
+    title: &str,
+    avatar_url: Option<&str>,
+) -> rusqlite::Result<()> {
     let connection = open_connection()?;
     connection.execute(
-        "INSERT OR REPLACE INTO subscriptions (channel_id, channel_url, channel_title)
-         VALUES (?1, ?2, ?3)",
-        (id, url, title),
+        "INSERT OR REPLACE INTO subscriptions (channel_id, channel_url, channel_title, avatar_url)
+         VALUES (?1, ?2, ?3, ?4)",
+        (id, url, title, avatar_url),
     )?;
     Ok(())
 }

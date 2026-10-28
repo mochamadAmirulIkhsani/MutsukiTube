@@ -35,15 +35,22 @@ component SubscribedChannelChip inherits Rectangle {
             width: 28px;
             height: 28px;
             border-radius: 14px;
+            clip: true;
             background: Theme.accent-soft;
 
-            Text {
+            if !root.channel.has-avatar: Text {
                 text: root.channel.initials;
                 font-size: 12px;
                 font-weight: 700;
                 color: Theme.accent;
                 vertical-alignment: center;
                 horizontal-alignment: center;
+            }
+
+            if root.channel.has-avatar: Image {
+                source: root.channel.avatar;
+                width: 100%;
+                height: 100%;
             }
         }
 

@@ -341,4 +341,21 @@ UCsBjURrPoezykLs9EqgamOA,http://www.youtube.com/channel/UCsBjURrPoezykLs9EqgamOA
         assert_eq!(compute_initials("A"), "A");
         assert_eq!(compute_initials(""), "?");
     }
+
+    #[test]
+    fn verify_channel_to_ui_has_avatar_flag() {
+        use crate::ui_models::channel_to_ui;
+
+        let channel = mutsukitube_storage::SubscribedChannel {
+            id: "UC123".into(),
+            url: "https://youtube.com/channel/UC123".into(),
+            title: "Tech Channel".into(),
+            avatar_url: Some("https://example.com/avatar.jpg".into()),
+        };
+
+        let ui_item = channel_to_ui(&channel, slint::Image::default());
+        assert_eq!(ui_item.title, "Tech Channel");
+        assert_eq!(ui_item.initials, "TC");
+        assert!(!ui_item.has_avatar);
+    }
 }

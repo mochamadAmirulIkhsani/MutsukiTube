@@ -112,3 +112,4 @@ pub enum NavRoute {
 }
 ```
 Preserves channel browsing state across back-navigation (`Subscriptions -> WatchPage -> Back` returns directly to the channel view without re-fetching).
+

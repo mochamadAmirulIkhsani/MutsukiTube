@@ -66,6 +66,10 @@ impl YoutubeProvider {
             },
         }
     }
+
+    pub async fn channel_avatar(&self, channel_id: &str) -> Result<Option<String>, ProviderError> {
+        self.native.channel_avatar(channel_id).await
+    }
 }
 
 impl Default for YoutubeProvider {

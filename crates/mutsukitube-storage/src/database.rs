@@ -81,6 +81,7 @@ pub fn open_connection() -> Result<Connection> {
             channel_id TEXT PRIMARY KEY,
             channel_url TEXT NOT NULL,
             channel_title TEXT NOT NULL,
+            avatar_url TEXT,
             imported_at INTEGER NOT NULL DEFAULT (unixepoch())
         );
 
@@ -98,6 +99,9 @@ pub fn open_connection() -> Result<Connection> {
         ON subscriptions(imported_at DESC);
         ",
     )?;
+
+    // Safe migration: add avatar_url column if database already existed
+    let _ = connection.execute("ALTER TABLE subscriptions ADD COLUMN avatar_url TEXT", []);
 
     Ok(connection)
 }
