@@ -2,6 +2,9 @@ import {
     HomePage,
 } from "pages/home-page.slint";
 import {
+    TrendingPage,
+} from "pages/trending-page.slint";
+import {
     SearchPage,
 } from "pages/search-page.slint";
 import {
@@ -18,7 +21,11 @@ import {
 } from "components/episode-row.slint";
 import {
     VideoItem,
+    ChannelItem,
 } from "components/video-card.slint";
+import {
+    SubscriptionsPage,
+} from "pages/subscriptions-page.slint";
 import {
     HistoryPage,
 } from "pages/history-page.slint";
@@ -80,6 +87,11 @@ export component AppWindow inherits Window {
 
     in-out property <string> provider-mode: "auto";
     in-out property <string> settings-status: "";
+    in-out property <int> subscriptions-count: 0;
+    in-out property <string> import-file-path: "";
+    in-out property <string> import-status: "";
+    in-out property <bool> import-is-error: false;
+    in-out property <bool> import-loading: false;
     in-out property <string> search-query: "";
 
     in-out property <[string]> anime-qualities: ["Auto"];
@@ -141,13 +153,54 @@ export component AppWindow inherits Window {
     in-out property <string> home-status-text: "";
     in-out property <string> home-selected-topic: "";
 
+    // YouTube Trending (Option A)
+    in-out property <[VideoItem]> trending-videos;
+    in-out property <bool> trending-loading: false;
+    in-out property <string> trending-status-text: "";
+    in-out property <string> trending-selected-category: "";
+    in-out property <string> trending-selected-country: "ID";
+
+    // YouTube Subscriptions
+    in-out property <[ChannelItem]> home-subscribed-channels;
+    in-out property <[ChannelItem]> subscriptions-channels;
+    in-out property <[VideoItem]> subscriptions-channel-videos;
+    in-out property <bool> subscriptions-loading: false;
+    in-out property <string> subscriptions-status-text: "";
+    in-out property <string> subscriptions-filter-query: "";
+    in-out property <string> subscriptions-selected-channel-id: "";
+    in-out property <string> subscriptions-selected-channel-title: "";
+    in-out property <int> subscriptions-current-page: 1;
+    in-out property <int> subscriptions-total-pages: 1;
+    in-out property <int> subscriptions-total-count: 0;
+    in-out property <int> subscriptions-page-start: 0;
+    in-out property <int> subscriptions-page-end: 0;
+    in-out property <string> subscriptions-sort: "a-z";
+
     callback save-provider(string);
+    callback select-import-file();
+    callback import-subscriptions(string);
+    callback clear-subscriptions();
+    callback nav-subscriptions();
+    callback load-subscriptions();
+    callback filter-subscriptions(string);
+    callback subscriptions-next-page();
+    callback subscriptions-prev-page();
+    callback subscriptions-first-page();
+    callback subscriptions-last-page();
+    callback subscriptions-change-sort(string);
+    callback select-subscription-channel(string, string);
+    callback clear-selected-subscription-channel();
+    callback remove-subscription-channel(string);
+    callback refresh-subscriptions();
     callback search(string);
     callback open-video(string);
     callback play-video(string);
     callback load-more();
     callback load-home();
     callback load-home-topic(string);
+    callback load-trending();
+    callback load-trending-category(string);
+    callback toggle-trending-country();
 
     callback show-history();
     callback refresh-history();
@@ -193,6 +246,7 @@ export component AppWindow inherits Window {
     callback nav-anime-details(string);
     callback nav-home();
     callback nav-watch();
+    callback nav-trending();
 
     changed current-page => {
         if (root.current-page == "watch") {
@@ -236,6 +290,14 @@ export component AppWindow inherits Window {
                 root.nav-home();
             }
 
+            nav-trending => {
+                root.nav-trending();
+            }
+
+            nav-subscriptions => {
+                root.nav-subscriptions();
+            }
+
             nav-search => {
                 root.nav-search(root.search-query);
             }
@@ -275,6 +337,7 @@ export component AppWindow inherits Window {
                 videos: root.home-videos;
                 continue-videos: root.home-continue-videos;
                 favorite-videos: root.home-favorite-videos;
+                subscribed-channels: root.home-subscribed-channels;
                 home-loading: root.home-loading;
                 home-status-text: root.home-status-text;
                 selected-topic: root.home-selected-topic;
@@ -309,6 +372,14 @@ export component AppWindow inherits Window {
                     root.nav-anime();
                 }
 
+                show-subscriptions => {
+                    root.nav-subscriptions();
+                }
+
+                select-channel(id, title) => {
+                    root.select-subscription-channel(id, title);
+                }
+
                 select-topic(topic) => {
                     root.home-selected-topic = topic;
                     root.load-home-topic(topic);
@@ -316,6 +387,100 @@ export component AppWindow inherits Window {
 
                 load-more => {
                     root.load-more();
+                }
+            }
+
+            if root.current-page == "trending": TrendingPage {
+                width: parent.width;
+                height: parent.height;
+                videos: root.trending-videos;
+                loading: root.trending-loading;
+                status-text: root.trending-status-text;
+                selected-category: root.trending-selected-category;
+                selected-country: root.trending-selected-country;
+
+                open-video(id) => {
+                    root.open-video(id);
+                }
+
+                select-category(category) => {
+                    root.trending-selected-category = category;
+                    root.load-trending-category(category);
+                }
+
+                toggle-country => {
+                    root.toggle-trending-country();
+                }
+
+                refresh => {
+                    root.load-trending();
+                }
+            }
+
+            if root.current-page == "subscriptions": SubscriptionsPage {
+                width: parent.width;
+                height: parent.height;
+                channels: root.subscriptions-channels;
+                channel-videos: root.subscriptions-channel-videos;
+                loading: root.subscriptions-loading;
+                status-text: root.subscriptions-status-text;
+                filter-query <=> root.subscriptions-filter-query;
+                selected-channel-id: root.subscriptions-selected-channel-id;
+                selected-channel-title: root.subscriptions-selected-channel-title;
+
+                current-page: root.subscriptions-current-page;
+                total-pages: root.subscriptions-total-pages;
+                total-count: root.subscriptions-total-count;
+                page-start: root.subscriptions-page-start;
+                page-end: root.subscriptions-page-end;
+                selected-sort: root.subscriptions-sort;
+
+                select-channel(id, title) => {
+                    root.select-subscription-channel(id, title);
+                }
+
+                clear-selected-channel => {
+                    root.clear-selected-subscription-channel();
+                }
+
+                remove-channel(id) => {
+                    root.remove-subscription-channel(id);
+                }
+
+                refresh => {
+                    root.refresh-subscriptions();
+                }
+
+                open-video(id) => {
+                    root.open-video(id);
+                }
+
+                open-settings => {
+                    root.nav-settings();
+                }
+
+                filter-changed(query) => {
+                    root.filter-subscriptions(query);
+                }
+
+                next-page => {
+                    root.subscriptions-next-page();
+                }
+
+                prev-page => {
+                    root.subscriptions-prev-page();
+                }
+
+                first-page => {
+                    root.subscriptions-first-page();
+                }
+
+                last-page => {
+                    root.subscriptions-last-page();
+                }
+
+                sort-changed(sort) => {
+                    root.subscriptions-change-sort(sort);
                 }
             }
 
@@ -572,6 +737,11 @@ export component AppWindow inherits Window {
                 height: parent.height;
                 provider-mode: root.provider-mode;
                 status-text: root.settings-status;
+                subscriptions-count: root.subscriptions-count;
+                import-file-path <=> root.import-file-path;
+                import-status: root.import-status;
+                import-is-error: root.import-is-error;
+                import-loading: root.import-loading;
 
                 back => {
                     root.nav-back();
@@ -579,6 +749,22 @@ export component AppWindow inherits Window {
 
                 save-provider(mode) => {
                     root.save-provider(mode);
+                }
+
+                select-import-file => {
+                    root.select-import-file();
+                }
+
+                import-subscriptions(path) => {
+                    root.import-subscriptions(path);
+                }
+
+                clear-subscriptions => {
+                    root.clear-subscriptions();
+                }
+
+                nav-subscriptions => {
+                    root.nav-subscriptions();
                 }
             }
 

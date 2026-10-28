@@ -7,8 +7,64 @@ import {
     HorizontalBox,
 } from "std-widgets.slint";
 
-import { VideoCard, GridVideoCard, VideoItem } from "../components/video-card.slint";
+import { VideoCard, GridVideoCard, VideoItem, ChannelItem } from "../components/video-card.slint";
 import { Theme } from "../theme.slint";
+
+component SubscribedChannelChip inherits Rectangle {
+    in property <ChannelItem> channel;
+    callback clicked();
+
+    height: 38px;
+    border-radius: 19px;
+    background: touch.has-hover ? Theme.surface-hover : Theme.surface;
+    border-width: 1px;
+    border-color: touch.has-hover ? Theme.border-strong : Theme.border;
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 5px;
+        padding-right: 14px;
+        spacing: 9px;
+        alignment: center;
+        cross-axis-alignment: center;
+
+        Rectangle {
+            width: 28px;
+            height: 28px;
+            border-radius: 14px;
+            clip: true;
+            background: Theme.accent-soft;
+
+            if !root.channel.has-avatar: Text {
+                text: root.channel.initials;
+                font-size: 12px;
+                font-weight: 700;
+                color: Theme.accent;
+                vertical-alignment: center;
+                horizontal-alignment: center;
+            }
+
+            if root.channel.has-avatar: Image {
+                source: root.channel.avatar;
+                width: 100%;
+                height: 100%;
+            }
+        }
+
+        Text {
+            text: root.channel.title;
+            font-size: 13px;
+            font-weight: 500;
+            color: touch.has-hover ? Theme.text-primary : Theme.text-secondary;
+            vertical-alignment: center;
+            overflow: elide;
+            max-width: 150px;
+        }
+    }
+}
 
 component TopicPill inherits Rectangle {
     in property <string> label: "";
@@ -51,6 +107,7 @@ export component HomePage inherits Rectangle {
     in property <[VideoItem]> videos;
     in property <[VideoItem]> continue-videos;
     in property <[VideoItem]> favorite-videos;
+    in property <[ChannelItem]> subscribed-channels;
     in property <[string]> playlist-names;
 
     in property <bool> home-loading: false;
@@ -65,6 +122,8 @@ export component HomePage inherits Rectangle {
     callback show-library();
     callback show-favorites();
     callback show-anime();
+    callback show-subscriptions();
+    callback select-channel(string, string);
     callback select-topic(string);
     callback load-more();
 
@@ -213,6 +272,62 @@ export component HomePage inherits Rectangle {
                         label: "Education";
                         active: root.selected-topic == "Education";
                         clicked => { root.select-topic("Education"); }
+                    }
+                }
+
+                // ---------------------------------------- Subscribed Channels Shelf
+                if root.subscribed-channels.length > 0: VerticalLayout {
+                    spacing: 12px;
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        cross-axis-alignment: center;
+
+                        Rectangle {
+                            width: 3px;
+                            height: 16px;
+                            border-radius: 1.5px;
+                            background: Theme.accent;
+                        }
+
+                        Text {
+                            text: "Your Subscriptions";
+                            color: Theme.text-primary;
+                            font-size: 18px;
+                            font-weight: 700;
+                        }
+
+                        Rectangle {
+                            horizontal-stretch: 1;
+                            background: transparent;
+                        }
+
+                        Button {
+                            text: "View All (" + root.subscribed-channels.length + ") ›";
+                            clicked => {
+                                root.show-subscriptions();
+                            }
+                        }
+                    }
+
+                    ScrollView {
+                        horizontal-stretch: 1;
+                        height: 52px;
+                        horizontal-scrollbar-policy: as-needed;
+                        vertical-scrollbar-policy: always-off;
+
+                        HorizontalLayout {
+                            spacing: 10px;
+                            padding-top: 2px;
+                            padding-bottom: 6px;
+
+                            for channel in root.subscribed-channels: SubscribedChannelChip {
+                                channel: channel;
+                                clicked => {
+                                    root.select-channel(channel.id, channel.title);
+                                }
+                            }
+                        }
                     }
                 }
 

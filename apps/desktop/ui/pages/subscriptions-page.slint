@@ -1,0 +1,613 @@
+import {
+    Button,
+    LineEdit,
+    ScrollView,
+    Spinner,
+} from "std-widgets.slint";
+
+import { ChannelItem, GridVideoCard, VideoItem } from "../components/video-card.slint";
+import { Theme } from "../theme.slint";
+
+component FilterPill inherits Rectangle {
+    in property <string> label: "";
+    in property <bool> active: false;
+    callback clicked();
+
+    height: 32px;
+    border-radius: 16px;
+
+    background: root.active
+        ? Theme.accent
+        : (touch.has-hover ? Theme.surface-hover : Theme.surface);
+
+    border-width: 1px;
+    border-color: root.active
+        ? Theme.accent
+        : (touch.has-hover ? Theme.border-strong : Theme.border);
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        alignment: center;
+        cross-axis-alignment: center;
+
+        Text {
+            text: root.label;
+            font-size: 13px;
+            font-weight: root.active ? 600 : 500;
+            color: root.active ? #ffffff : (touch.has-hover ? Theme.text-primary : Theme.text-secondary);
+            vertical-alignment: center;
+        }
+    }
+}
+
+component ChannelCard inherits Rectangle {
+    in property <ChannelItem> channel;
+
+    callback clicked();
+    callback remove();
+
+    width: 220px;
+    height: 160px;
+    border-radius: Theme.radius;
+    background: touch.has-hover ? Theme.surface-hover : Theme.surface;
+    border-width: 1px;
+    border-color: touch.has-hover ? Theme.border-strong : Theme.border;
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    VerticalLayout {
+        padding: 14px;
+        spacing: 8px;
+        alignment: center;
+        cross-axis-alignment: center;
+
+        // Channel Avatar Circle
+        Rectangle {
+            width: 48px;
+            height: 48px;
+            border-radius: 24px;
+            clip: true;
+            background: Theme.accent-soft;
+
+            if !root.channel.has-avatar: Text {
+                text: root.channel.initials;
+                font-size: 18px;
+                font-weight: 700;
+                color: Theme.accent;
+                vertical-alignment: center;
+                horizontal-alignment: center;
+            }
+
+            if root.channel.has-avatar: Image {
+                source: root.channel.avatar;
+                width: 100%;
+                height: 100%;
+            }
+        }
+
+        // Channel Name
+        Text {
+            text: root.channel.title;
+            font-size: 14px;
+            font-weight: 600;
+            color: Theme.text-primary;
+            horizontal-alignment: center;
+            overflow: elide;
+            max-width: 190px;
+        }
+
+        // Action Buttons Row
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: center;
+            cross-axis-alignment: center;
+
+            Button {
+                text: "Videos";
+                primary: true;
+                clicked => { root.clicked(); }
+            }
+
+            Button {
+                text: "Remove";
+                clicked => { root.remove(); }
+            }
+        }
+    }
+}
+
+export component SubscriptionsPage inherits Rectangle {
+    in property <[ChannelItem]> channels;
+    in property <[VideoItem]> channel-videos;
+    in property <bool> loading: false;
+    in property <string> status-text: "";
+    in-out property <string> filter-query: "";
+    in property <string> selected-channel-id: "";
+    in property <string> selected-channel-title: "";
+
+    // Pagination & Filter properties
+    in property <int> current-page: 1;
+    in property <int> total-pages: 1;
+    in property <int> total-count: 0;
+    in property <int> page-start: 0;
+    in property <int> page-end: 0;
+    in property <string> selected-sort: "a-z";
+
+    callback select-channel(string, string);
+    callback clear-selected-channel();
+    callback remove-channel(string);
+    callback refresh();
+    callback open-video(string);
+    callback open-settings();
+    callback filter-changed(string);
+
+    callback next-page();
+    callback prev-page();
+    callback first-page();
+    callback last-page();
+    callback sort-changed(string);
+
+    background: Theme.bg;
+
+    VerticalLayout {
+        spacing: 0px;
+
+        // ------------------------------------------------------------- Top Bar
+        Rectangle {
+            height: 68px;
+            background: Theme.bg;
+
+            Rectangle {
+                y: parent.height - 1px;
+                height: 1px;
+                width: 100%;
+                background: Theme.border;
+            }
+
+            HorizontalLayout {
+                padding-left: 24px;
+                padding-right: 24px;
+                spacing: 16px;
+                alignment: space-between;
+                cross-axis-alignment: center;
+
+                // Heading / Back
+                HorizontalLayout {
+                    spacing: 12px;
+                    alignment: start;
+                    cross-axis-alignment: center;
+
+                    if root.selected-channel-id != "": Button {
+                        text: "‹ All Channels";
+                        clicked => {
+                            root.clear-selected-channel();
+                        }
+                    }
+
+                    Image {
+                        source: @image-url("../assets/subscriptions.svg");
+                        width: 22px;
+                        height: 22px;
+                        colorize: Theme.accent;
+                    }
+
+                    VerticalLayout {
+                        spacing: 2px;
+                        alignment: center;
+
+                        Text {
+                            text: root.selected-channel-id != ""
+                                ? root.selected-channel-title
+                                : "Subscriptions";
+                            color: Theme.text-primary;
+                            font-size: 20px;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+
+                        Text {
+                            text: root.selected-channel-id != ""
+                                ? "Channel Uploads & Videos"
+                                : (root.total-count + " subscribed channels");
+                            color: Theme.text-secondary;
+                            font-size: 12px;
+                        }
+                    }
+                }
+
+                // Top Controls: Refresh
+                HorizontalLayout {
+                    spacing: 12px;
+                    alignment: end;
+                    cross-axis-alignment: center;
+
+                    Button {
+                        text: "↻ Refresh";
+                        enabled: !root.loading;
+                        clicked => {
+                            root.refresh();
+                        }
+                    }
+                }
+            }
+        }
+
+        // ------------------------------------------------------------- Main Content
+        ScrollView {
+            vertical-scrollbar-policy: as-needed;
+            horizontal-scrollbar-policy: always-off;
+
+            VerticalLayout {
+                padding: 24px;
+                spacing: 20px;
+
+                // Loading Indicator
+                if root.loading: HorizontalLayout {
+                    alignment: center;
+                    spacing: 10px;
+                    padding-top: 12px;
+                    padding-bottom: 12px;
+
+                    Spinner {
+                        indeterminate: true;
+                        width: 24px;
+                        height: 24px;
+                    }
+
+                    Text {
+                        text: root.status-text != "" ? root.status-text : "Loading...";
+                        color: Theme.text-secondary;
+                        font-size: 13px;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // Status Message when not loading
+                if !root.loading && root.status-text != "": HorizontalLayout {
+                    alignment: start;
+
+                    Text {
+                        text: root.status-text;
+                        color: Theme.text-secondary;
+                        font-size: 13px;
+                    }
+                }
+
+                // VIEW 1: Channel Videos View (when a channel is selected)
+                if root.selected-channel-id != "": VerticalLayout {
+                    spacing: 14px;
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        cross-axis-alignment: center;
+
+                        Rectangle {
+                            width: 3px;
+                            height: 16px;
+                            border-radius: 1.5px;
+                            background: Theme.accent;
+                        }
+
+                        Text {
+                            text: "Latest Uploads from " + root.selected-channel-title;
+                            color: Theme.text-primary;
+                            font-size: 18px;
+                            font-weight: 700;
+                        }
+                    }
+
+                    if root.channel-videos.length > 0: FlexboxLayout {
+                        spacing: 18px;
+                        flex-direction: row;
+                        flex-wrap: wrap;
+                        alignment: start;
+
+                        for video in root.channel-videos: GridVideoCard {
+                            video: video;
+                            clicked(id) => {
+                                root.open-video(id);
+                            }
+                        }
+                    }
+
+                    if root.channel-videos.length == 0 && !root.loading: Rectangle {
+                        background: transparent;
+                        height: 220px;
+
+                        VerticalLayout {
+                            alignment: center;
+                            cross-axis-alignment: center;
+                            spacing: 12px;
+
+                            Text {
+                                text: "No videos found for this channel";
+                                color: Theme.text-secondary;
+                                font-size: 15px;
+                                font-weight: 500;
+                            }
+                        }
+                    }
+                }
+
+                // VIEW 2: Subscribed Channels View (when no channel is selected)
+                if root.selected-channel-id == "": VerticalLayout {
+                    spacing: 18px;
+
+                    // Search Bar and Filter Pills
+                    HorizontalLayout {
+                        spacing: 14px;
+                        alignment: space-between;
+                        cross-axis-alignment: center;
+
+                        // Search Input + Clear Button
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: start;
+                            cross-axis-alignment: center;
+
+                            search-input := LineEdit {
+                                placeholder-text: "Search subscribed channels...";
+                                text: root.filter-query;
+                                width: 280px;
+                                edited => {
+                                    root.filter-query = self.text;
+                                    root.filter-changed(self.text);
+                                }
+                            }
+
+                            if root.filter-query != "": Button {
+                                text: "✕ Clear";
+                                clicked => {
+                                    root.filter-query = "";
+                                    root.filter-changed("");
+                                }
+                            }
+                        }
+
+                        // Filter / Sort Chips
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: end;
+                            cross-axis-alignment: center;
+
+                            FilterPill {
+                                label: "A → Z";
+                                active: root.selected-sort == "a-z";
+                                clicked => { root.sort-changed("a-z"); }
+                            }
+
+                            FilterPill {
+                                label: "Z → A";
+                                active: root.selected-sort == "z-a";
+                                clicked => { root.sort-changed("z-a"); }
+                            }
+
+                            FilterPill {
+                                label: "With Avatar";
+                                active: root.selected-sort == "with-avatar";
+                                clicked => { root.sort-changed("with-avatar"); }
+                            }
+                        }
+                    }
+
+                    // Top Pagination & Range Summary Header
+                    if root.channels.length > 0: HorizontalLayout {
+                        alignment: space-between;
+                        cross-axis-alignment: center;
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            cross-axis-alignment: center;
+
+                            Rectangle {
+                                width: 3px;
+                                height: 16px;
+                                border-radius: 1.5px;
+                                background: Theme.accent;
+                            }
+
+                            Text {
+                                text: root.filter-query != ""
+                                    ? ("Showing " + root.page-start + "–" + root.page-end + " of " + root.total-count + " matching channels")
+                                    : ("Showing " + root.page-start + "–" + root.page-end + " of " + root.total-count + " channels");
+                                color: Theme.text-primary;
+                                font-size: 15px;
+                                font-weight: 600;
+                            }
+                        }
+
+                        if root.total-pages > 1: HorizontalLayout {
+                            spacing: 6px;
+                            alignment: end;
+                            cross-axis-alignment: center;
+
+                            Button {
+                                text: "«";
+                                enabled: root.current-page > 1;
+                                clicked => { root.first-page(); }
+                            }
+
+                            Button {
+                                text: "‹ Prev";
+                                enabled: root.current-page > 1;
+                                clicked => { root.prev-page(); }
+                            }
+
+                            Rectangle {
+                                height: 32px;
+                                border-radius: 6px;
+                                background: Theme.surface;
+                                border-width: 1px;
+                                border-color: Theme.border;
+
+                                HorizontalLayout {
+                                    padding-left: 10px;
+                                    padding-right: 10px;
+                                    alignment: center;
+                                    cross-axis-alignment: center;
+
+                                    Text {
+                                        text: root.current-page + " / " + root.total-pages;
+                                        color: Theme.text-primary;
+                                        font-size: 12px;
+                                        font-weight: 600;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+
+                            Button {
+                                text: "Next ›";
+                                enabled: root.current-page < root.total-pages;
+                                clicked => { root.next-page(); }
+                            }
+
+                            Button {
+                                text: "»";
+                                enabled: root.current-page < root.total-pages;
+                                clicked => { root.last-page(); }
+                            }
+                        }
+                    }
+
+                    // Channels Grid
+                    if root.channels.length > 0: FlexboxLayout {
+                        spacing: 16px;
+                        flex-direction: row;
+                        flex-wrap: wrap;
+                        alignment: start;
+
+                        for channel in root.channels: ChannelCard {
+                            channel: channel;
+                            clicked => {
+                                root.select-channel(channel.id, channel.title);
+                            }
+                            remove => {
+                                root.remove-channel(channel.id);
+                            }
+                        }
+                    }
+
+                    // Bottom Pagination Controls
+                    if root.channels.length > 0 && root.total-pages > 1: HorizontalLayout {
+                        alignment: center;
+                        spacing: 8px;
+                        padding-top: 14px;
+                        padding-bottom: 24px;
+                        cross-axis-alignment: center;
+
+                        Button {
+                            text: "« First";
+                            enabled: root.current-page > 1;
+                            clicked => { root.first-page(); }
+                        }
+
+                        Button {
+                            text: "‹ Previous";
+                            enabled: root.current-page > 1;
+                            clicked => { root.prev-page(); }
+                        }
+
+                        Rectangle {
+                            height: 32px;
+                            border-radius: 6px;
+                            background: Theme.surface;
+                            border-width: 1px;
+                            border-color: Theme.border;
+
+                            HorizontalLayout {
+                                padding-left: 14px;
+                                padding-right: 14px;
+                                alignment: center;
+                                cross-axis-alignment: center;
+
+                                Text {
+                                    text: "Page " + root.current-page + " of " + root.total-pages;
+                                    color: Theme.text-primary;
+                                    font-size: 13px;
+                                    font-weight: 600;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+
+                        Button {
+                            text: "Next ›";
+                            enabled: root.current-page < root.total-pages;
+                            clicked => { root.next-page(); }
+                        }
+
+                        Button {
+                            text: "Last »";
+                            enabled: root.current-page < root.total-pages;
+                            clicked => { root.last-page(); }
+                        }
+                    }
+
+                    // Empty State (no channels match or none imported)
+                    if root.channels.length == 0 && !root.loading: Rectangle {
+                        background: transparent;
+                        height: 320px;
+
+                        VerticalLayout {
+                            alignment: center;
+                            cross-axis-alignment: center;
+                            spacing: 16px;
+
+                            Image {
+                                source: @image-url("../assets/subscriptions.svg");
+                                width: 54px;
+                                height: 54px;
+                                colorize: Theme.text-muted;
+                            }
+
+                            Text {
+                                text: root.filter-query != ""
+                                    ? "No channels match \"" + root.filter-query + "\""
+                                    : "No Subscribed Channels Yet";
+                                color: Theme.text-primary;
+                                font-size: 18px;
+                                font-weight: 700;
+                            }
+
+                            Text {
+                                text: root.filter-query != ""
+                                    ? "Try a different search term or clear the filter"
+                                    : "Import your subscriptions from Google Takeout (subscriptions.csv or langganan.csv) in Settings.";
+                                color: Theme.text-secondary;
+                                font-size: 14px;
+                                max-width: 440px;
+                                horizontal-alignment: center;
+                                wrap: word-wrap;
+                            }
+
+                            if root.filter-query != "": Button {
+                                text: "Clear Filter";
+                                clicked => {
+                                    root.filter-query = "";
+                                    root.filter-changed("");
+                                }
+                            }
+
+                            if root.filter-query == "": Button {
+                                text: "Open Settings to Import";
+                                primary: true;
+                                clicked => {
+                                    root.open-settings();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -16,6 +16,7 @@ impl ExternalMpvPlayer {
             .arg(&url)
             .arg("--hwdec=auto-safe")
             .arg("--force-window=yes")
+            .arg("--ytdl-raw-options=extractor-args=youtube:player_client=android,ios,web")
             .spawn()?;
 
         Ok(child)

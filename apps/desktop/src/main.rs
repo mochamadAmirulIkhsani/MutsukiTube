@@ -250,6 +250,8 @@ fn main() -> Result<(), slint::PlatformError> {
     handlers::library::register(&ui, &context);
     handlers::search::register(&ui, &context);
     handlers::home::register(&ui, &context);
+    handlers::trending::register(&ui, &context);
+    handlers::subscriptions::register(&ui, &context);
 
     #[cfg(target_os = "windows")]
     handlers::anime::register(&ui, &context, native_session.clone());

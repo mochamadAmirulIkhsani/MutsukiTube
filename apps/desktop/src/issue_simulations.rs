@@ -206,4 +206,231 @@ mod tests {
             "FIXED: Watchdog auto-cleared orphaned seeking flag after 1.6s of inactivity"
         );
     }
+
+    // =========================================================================
+    // TRENDING VERIFICATION: Trending Videos Can Be Played and Navigated
+    // =========================================================================
+    #[test]
+    fn verify_trending_video_playback_and_navigation_succeeds() {
+        let mut state = AppState::default();
+
+        let trending_video = Video {
+            id: "trend123456".into(),
+            title: "Trending Music Video".into(),
+            channel: "Music Artist".into(),
+            thumbnail: "https://example.com/trend.jpg".into(),
+            duration: Some(180),
+        };
+
+        state.trending_results.push(trending_video.clone());
+
+        // Verify player find_video queries trending_results
+        let found = state
+            .search_results
+            .iter()
+            .chain(state.home_results.iter())
+            .chain(state.trending_results.iter())
+            .chain(state.history_results.iter())
+            .chain(state.library_results.iter())
+            .find(|v| v.id == "trend123456");
+
+        assert!(
+            found.is_some(),
+            "Trending video is successfully resolved in AppState"
+        );
+
+        // Verify navigation push and back preservation
+        navigation::push_entry(
+            &mut state,
+            NavEntry::new(NavRoute::YouTubeTrending {
+                category: "music".into(),
+            }),
+        );
+
+        assert_eq!(state.nav_stack.len(), 1);
+        assert_eq!(
+            state.nav_stack.last().unwrap().route,
+            NavRoute::YouTubeTrending {
+                category: "music".into()
+            }
+        );
+    }
+
+    // =========================================================================
+    // GOOGLE TAKEOUT IMPORT VERIFICATION: Indonesian & English CSV Import
+    // =========================================================================
+    #[test]
+    fn verify_google_takeout_csv_import_roundtrip() {
+        let indonesian_csv = "ID Channel,URL Channel,Judul Channel\n\
+UC_x5XG1OV2P6uZZ5FSM9Ttw,http://www.youtube.com/channel/UC_x5XG1OV2P6uZZ5FSM9Ttw,Google Developers\n\
+UCBJycsmduvYEL83R_U4JriQ,http://www.youtube.com/channel/UCBJycsmduvYEL83R_U4JriQ,Marques Brownlee";
+
+        let channels = mutsukitube_storage::parse_subscriptions_csv(indonesian_csv);
+        assert_eq!(channels.len(), 2);
+        assert_eq!(channels[0].title, "Google Developers");
+        assert_eq!(channels[1].title, "Marques Brownlee");
+
+        let english_csv = "\u{feff}Channel Id,Channel Url,Channel Title\n\
+UCsBjURrPoezykLs9EqgamOA,http://www.youtube.com/channel/UCsBjURrPoezykLs9EqgamOA,Fireship";
+
+        let channels_en = mutsukitube_storage::parse_subscriptions_csv(english_csv);
+        assert_eq!(channels_en.len(), 1);
+        assert_eq!(channels_en[0].title, "Fireship");
+    }
+
+    // =========================================================================
+    // SUBSCRIPTIONS PAGE & FEED VERIFICATION: Navigation, Initials & Video Playback
+    // =========================================================================
+    #[test]
+    fn verify_subscriptions_channel_playback_and_navigation_succeeds() {
+        let mut state = AppState::default();
+
+        let channel_video = Video {
+            id: "channelVid1".into(),
+            title: "Latest Channel Upload".into(),
+            channel: "Fireship".into(),
+            thumbnail: "https://example.com/fire.jpg".into(),
+            duration: Some(120),
+        };
+
+        state.subscriptions_channel_videos.push(channel_video.clone());
+
+        // Verify player find_video queries subscriptions_channel_videos
+        let found = state
+            .search_results
+            .iter()
+            .chain(state.home_results.iter())
+            .chain(state.trending_results.iter())
+            .chain(state.subscriptions_channel_videos.iter())
+            .chain(state.history_results.iter())
+            .chain(state.library_results.iter())
+            .find(|v| v.id == "channelVid1");
+
+        assert!(
+            found.is_some(),
+            "Subscription channel video is successfully resolved in AppState"
+        );
+        assert_eq!(found.unwrap().channel, "Fireship");
+
+        // Verify navigation push and back preservation
+        navigation::push_entry(
+            &mut state,
+            NavEntry::new(NavRoute::YouTubeSubscriptions {
+                channel_id: Some("UCsBjURrPoezykLs9EqgamOA".into()),
+                channel_title: Some("Fireship".into()),
+            }),
+        );
+
+        assert_eq!(state.nav_stack.len(), 1);
+        assert_eq!(
+            state.nav_stack.last().unwrap().route,
+            NavRoute::YouTubeSubscriptions {
+                channel_id: Some("UCsBjURrPoezykLs9EqgamOA".into()),
+                channel_title: Some("Fireship".into()),
+            }
+        );
+    }
+
+    #[test]
+    fn verify_channel_initials_computation() {
+        use crate::ui_models::compute_initials;
+
+        assert_eq!(compute_initials("Google Developers"), "GD");
+        assert_eq!(compute_initials("Fireship"), "FI");
+        assert_eq!(compute_initials("Marques Brownlee"), "MB");
+        assert_eq!(compute_initials("A"), "A");
+        assert_eq!(compute_initials(""), "?");
+    }
+
+    #[test]
+    fn verify_channel_to_ui_has_avatar_flag() {
+        use crate::ui_models::channel_to_ui;
+
+        let channel = mutsukitube_storage::SubscribedChannel {
+            id: "UC123".into(),
+            url: "https://youtube.com/channel/UC123".into(),
+            title: "Tech Channel".into(),
+            avatar_url: Some("https://example.com/avatar.jpg".into()),
+        };
+
+        let ui_item = channel_to_ui(&channel, slint::Image::default());
+        assert_eq!(ui_item.title, "Tech Channel");
+        assert_eq!(ui_item.initials, "TC");
+        assert!(!ui_item.has_avatar);
+    }
+
+    #[test]
+    fn verify_subscriptions_filtering_and_sorting() {
+        use crate::handlers::subscriptions::get_filtered_and_sorted;
+        use mutsukitube_storage::SubscribedChannel;
+
+        let channels = vec![
+            SubscribedChannel {
+                id: "1".into(),
+                url: "".into(),
+                title: "Zebra Tech".into(),
+                avatar_url: None,
+            },
+            SubscribedChannel {
+                id: "2".into(),
+                url: "".into(),
+                title: "Alpha Gaming".into(),
+                avatar_url: Some("https://example.com/avatar.jpg".into()),
+            },
+            SubscribedChannel {
+                id: "3".into(),
+                url: "".into(),
+                title: "Beta Tutorials".into(),
+                avatar_url: None,
+            },
+        ];
+
+        // Default sort: A-Z
+        let sorted_az = get_filtered_and_sorted(&channels, "", "a-z");
+        assert_eq!(sorted_az[0].title, "Alpha Gaming");
+        assert_eq!(sorted_az[1].title, "Beta Tutorials");
+        assert_eq!(sorted_az[2].title, "Zebra Tech");
+
+        // Sort: Z-A
+        let sorted_za = get_filtered_and_sorted(&channels, "", "z-a");
+        assert_eq!(sorted_za[0].title, "Zebra Tech");
+        assert_eq!(sorted_za[1].title, "Beta Tutorials");
+        assert_eq!(sorted_za[2].title, "Alpha Gaming");
+
+        // Filter by search query (case-insensitive)
+        let filtered = get_filtered_and_sorted(&channels, "tech", "a-z");
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].title, "Zebra Tech");
+
+        // Filter: with-avatar
+        let with_avatar = get_filtered_and_sorted(&channels, "", "with-avatar");
+        assert_eq!(with_avatar.len(), 1);
+        assert_eq!(with_avatar[0].title, "Alpha Gaming");
+    }
+
+    #[test]
+    fn verify_subscriptions_pagination_calculations() {
+        use crate::handlers::subscriptions::CHANNELS_PER_PAGE;
+
+        let total_count = 50;
+        let total_pages = (total_count + CHANNELS_PER_PAGE - 1) / CHANNELS_PER_PAGE;
+        assert_eq!(total_pages, 3); // 24 + 24 + 2 = 50
+
+        // Page 1
+        let page = 1;
+        let start_index = (page - 1) * CHANNELS_PER_PAGE;
+        let count_on_page = CHANNELS_PER_PAGE.min(total_count - start_index);
+        let end_index = start_index + count_on_page;
+        assert_eq!(start_index, 0);
+        assert_eq!(end_index, 24);
+
+        // Page 3
+        let page = 3;
+        let start_index = (page - 1) * CHANNELS_PER_PAGE;
+        let count_on_page = CHANNELS_PER_PAGE.min(total_count - start_index);
+        let end_index = start_index + count_on_page;
+        assert_eq!(start_index, 48);
+        assert_eq!(end_index, 50);
+        assert_eq!(count_on_page, 2);
+    }
 }

@@ -45,6 +45,31 @@ impl YoutubeProvider {
     pub fn native(&self) -> &NativeYoutubeProvider {
         &self.native
     }
+
+    pub async fn trending(
+        &self,
+        category: Option<&str>,
+        country: Option<&str>,
+    ) -> Result<Vec<Video>, ProviderError> {
+        match self.mode {
+            ProviderMode::Native => self.native.trending(category, country).await,
+            ProviderMode::YtDlp => self.fallback.trending(category, country).await,
+            ProviderMode::Auto => match self.native.trending(category, country).await {
+                Ok(videos) if !videos.is_empty() => {
+                    println!("[MutsukiTube] Native trending: {} videos", videos.len());
+                    Ok(videos)
+                }
+                Ok(_) | Err(_) => {
+                    eprintln!("[MutsukiTube] Native trending empty or failed, trying yt-dlp fallback");
+                    self.fallback.trending(category, country).await
+                }
+            },
+        }
+    }
+
+    pub async fn channel_avatar(&self, channel_id: &str) -> Result<Option<String>, ProviderError> {
+        self.native.channel_avatar(channel_id).await
+    }
 }
 
 impl Default for YoutubeProvider {

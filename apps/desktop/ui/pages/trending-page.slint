@@ -1,0 +1,279 @@
+import {
+    Button,
+    ScrollView,
+    Spinner,
+} from "std-widgets.slint";
+
+import { GridVideoCard, VideoItem } from "../components/video-card.slint";
+import { Theme } from "../theme.slint";
+
+component CategoryPill inherits Rectangle {
+    in property <string> label: "";
+    in property <bool> active: false;
+    callback clicked();
+
+    height: 32px;
+    border-radius: 16px;
+
+    background: root.active
+        ? Theme.accent
+        : (touch.has-hover ? Theme.surface-hover : Theme.surface);
+
+    border-width: 1px;
+    border-color: root.active
+        ? Theme.accent
+        : (touch.has-hover ? Theme.border-strong : Theme.border);
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        alignment: center;
+        cross-axis-alignment: center;
+
+        Text {
+            text: root.label;
+            font-size: 13px;
+            font-weight: root.active ? 600 : 500;
+            color: root.active ? #ffffff : (touch.has-hover ? Theme.text-primary : Theme.text-secondary);
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component TrendingPage inherits Rectangle {
+    in property <[VideoItem]> videos;
+    in property <bool> loading: false;
+    in property <string> status-text: "";
+    in property <string> selected-category: "";
+    in property <string> selected-country: "ID";
+
+    callback open-video(string);
+    callback select-category(string);
+    callback toggle-country();
+    callback refresh();
+
+    background: Theme.bg;
+
+    VerticalLayout {
+        spacing: 0px;
+
+        // ------------------------------------------------------------- Top Bar
+        Rectangle {
+            height: 68px;
+            background: Theme.bg;
+
+            Rectangle {
+                y: parent.height - 1px;
+                height: 1px;
+                width: 100%;
+                background: Theme.border;
+            }
+
+            HorizontalLayout {
+                padding-left: 24px;
+                padding-right: 24px;
+                spacing: 16px;
+                alignment: space-between;
+                cross-axis-alignment: center;
+
+                // Page Heading
+                VerticalLayout {
+                    spacing: 2px;
+                    alignment: center;
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        cross-axis-alignment: center;
+
+                        Image {
+                            source: @image-url("../assets/trending.svg");
+                            width: 22px;
+                            height: 22px;
+                            colorize: Theme.accent;
+                        }
+
+                        Text {
+                            text: "Trending";
+                            font-size: 20px;
+                            font-weight: 700;
+                            color: Theme.text-primary;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    Text {
+                        text: root.selected-country == "ID"
+                            ? "Popular right now in Indonesia"
+                            : "Popular right now worldwide (US)";
+                        font-size: 12px;
+                        color: Theme.text-secondary;
+                    }
+                }
+
+                // Country Toggle & Refresh Actions
+                HorizontalLayout {
+                    spacing: 12px;
+                    alignment: end;
+                    cross-axis-alignment: center;
+
+                    CategoryPill {
+                        label: root.selected-country == "ID" ? "🇮🇩 ID (Indonesia)" : "🌐 Global (US)";
+                        active: false;
+                        clicked => { root.toggle-country(); }
+                    }
+
+                    Button {
+                        text: "Refresh";
+                        enabled: !root.loading;
+                        clicked => { root.refresh(); }
+                    }
+                }
+            }
+        }
+
+        // ---------------------------------------------------------- Status Bar
+        if root.loading || root.status-text != "": Rectangle {
+            height: 32px;
+            background: Theme.surface-sunken;
+
+            HorizontalLayout {
+                padding-left: 24px;
+                padding-right: 24px;
+                spacing: 10px;
+                alignment: start;
+                cross-axis-alignment: center;
+
+                if root.loading: Spinner {
+                    width: 14px;
+                    height: 14px;
+                }
+
+                Text {
+                    text: root.loading ? "Loading trending videos..." : root.status-text;
+                    color: Theme.text-secondary;
+                    font-size: 13px;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        // ---------------------------------------------------- Main Scroll Area
+        ScrollView {
+            vertical-stretch: 1;
+            horizontal-scrollbar-policy: always-off;
+            vertical-scrollbar-policy: as-needed;
+
+            VerticalLayout {
+                padding: 24px;
+                spacing: 24px;
+
+                // ------------------------------------ Category Segmented Pills
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+                    cross-axis-alignment: center;
+
+                    CategoryPill {
+                        label: "Now";
+                        active: root.selected-category == "";
+                        clicked => { root.select-category(""); }
+                    }
+
+                    CategoryPill {
+                        label: "Music";
+                        active: root.selected-category == "music";
+                        clicked => { root.select-category("music"); }
+                    }
+
+                    CategoryPill {
+                        label: "Gaming";
+                        active: root.selected-category == "gaming";
+                        clicked => { root.select-category("gaming"); }
+                    }
+
+                    CategoryPill {
+                        label: "Movies";
+                        active: root.selected-category == "movies";
+                        clicked => { root.select-category("movies"); }
+                    }
+                }
+
+                // ------------------------------------------------ Section Title
+                HorizontalLayout {
+                    spacing: 8px;
+                    cross-axis-alignment: center;
+
+                    Rectangle {
+                        width: 3px;
+                        height: 16px;
+                        border-radius: 1.5px;
+                        background: Theme.accent;
+                    }
+
+                    Text {
+                        text: root.selected-category == ""
+                            ? "Trending Charts"
+                            : (root.selected-category == "music"
+                                ? "Trending in Music"
+                                : (root.selected-category == "gaming"
+                                    ? "Trending in Gaming"
+                                    : "Trending Movies & Trailers"));
+                        color: Theme.text-primary;
+                        font-size: 18px;
+                        font-weight: 700;
+                    }
+                }
+
+                // ------------------------------------------------ Video Grid
+                if root.videos.length > 0: FlexboxLayout {
+                    spacing: 18px;
+                    flex-direction: row;
+                    flex-wrap: wrap;
+                    alignment: start;
+
+                    for video in root.videos: GridVideoCard {
+                        video: video;
+                        clicked(id) => {
+                            root.open-video(id);
+                        }
+                    }
+                }
+
+                // ------------------------------------------------- Empty State
+                if root.videos.length == 0 && !root.loading: Rectangle {
+                    background: transparent;
+                    height: 280px;
+
+                    VerticalLayout {
+                        alignment: center;
+                        cross-axis-alignment: center;
+                        spacing: 14px;
+
+                        Image {
+                            source: @image-url("../assets/trending.svg");
+                            width: 48px;
+                            height: 48px;
+                            colorize: Theme.text-muted;
+                        }
+
+                        Text {
+                            text: "No trending videos found";
+                            color: Theme.text-secondary;
+                            font-size: 16px;
+                            font-weight: 600;
+                        }
+
+                        Button {
+                            text: "Try Again";
+                            clicked => { root.refresh(); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

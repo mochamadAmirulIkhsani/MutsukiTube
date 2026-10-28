@@ -11,8 +11,43 @@ use crate::{
 };
 
 const SEARCH_ENDPOINT: &str = "https://www.youtube.com/youtubei/v1/search?prettyPrint=false";
+const BROWSE_ENDPOINT: &str = "https://www.youtube.com/youtubei/v1/browse?prettyPrint=false";
 
 const DEFAULT_WEB_VERSION: &str = "2.20261002.01.00";
+
+pub fn trending_query(category: Option<&str>, country: &str) -> String {
+    let is_id = country.eq_ignore_ascii_case("ID");
+    match category.map(|s| s.to_lowercase()).as_deref() {
+        Some("music") => {
+            if is_id {
+                "Trending Musik Indonesia".into()
+            } else {
+                "Trending Music".into()
+            }
+        }
+        Some("gaming") => {
+            if is_id {
+                "Trending Gaming Indonesia".into()
+            } else {
+                "Trending Gaming".into()
+            }
+        }
+        Some("movies") | Some("films") => {
+            if is_id {
+                "Trending Movie Trailers Indonesia".into()
+            } else {
+                "Trending Movie Trailers".into()
+            }
+        }
+        _ => {
+            if is_id {
+                "Trending Indonesia".into()
+            } else {
+                "Trending".into()
+            }
+        }
+    }
+}
 
 pub struct NativeYoutubeProvider {
     client: Client,
@@ -113,6 +148,105 @@ impl NativeYoutubeProvider {
             videos,
             next_page_token,
         })
+    }
+
+    pub async fn trending(
+        &self,
+        category: Option<&str>,
+        country: Option<&str>,
+    ) -> Result<Vec<Video>, ProviderError> {
+        let country = country.unwrap_or("ID");
+        let query = trending_query(category, country);
+
+        let body = json!({
+            "context": {
+                "client": {
+                    "clientName": "WEB",
+                    "clientVersion": self.client_version,
+                    "hl": "en",
+                    "gl": country
+                }
+            },
+            "query": query,
+            "params": "CAISAhAB"
+        });
+
+        let response = self
+            .client
+            .post(SEARCH_ENDPOINT)
+            .header("X-YouTube-Client-Name", "1")
+            .header("X-YouTube-Client-Version", &self.client_version)
+            .header("Origin", "https://www.youtube.com")
+            .header("Referer", "https://www.youtube.com/")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|error| ProviderError::Network(error.to_string()))?;
+
+        let status = response.status();
+
+        if !status.is_success() {
+            return Err(ProviderError::Other(format!("InnerTube HTTP {status}")));
+        }
+
+        let data: Value = response
+            .json()
+            .await
+            .map_err(|error| ProviderError::Parse(error.to_string()))?;
+
+        let mut videos = Vec::new();
+        collect_videos(&data, &mut videos);
+
+        Ok(videos)
+    }
+
+    pub async fn channel_avatar(&self, channel_id: &str) -> Result<Option<String>, ProviderError> {
+        let body = json!({
+            "context": {
+                "client": {
+                    "clientName": "WEB",
+                    "clientVersion": self.client_version,
+                    "hl": "en",
+                    "gl": "US"
+                }
+            },
+            "browseId": channel_id
+        });
+
+        let response = self
+            .client
+            .post(BROWSE_ENDPOINT)
+            .header("X-YouTube-Client-Name", "1")
+            .header("X-YouTube-Client-Version", &self.client_version)
+            .header("Origin", "https://www.youtube.com")
+            .header("Referer", "https://www.youtube.com/")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|error| ProviderError::Network(error.to_string()))?;
+
+        if !response.status().is_success() {
+            return Ok(None);
+        }
+
+        let data: Value = response
+            .json()
+            .await
+            .map_err(|error| ProviderError::Parse(error.to_string()))?;
+
+        let raw_url = data
+            .pointer("/metadata/channelMetadataRenderer/avatar/thumbnails/0/url")
+            .and_then(|v| v.as_str());
+
+        let avatar_url = raw_url.map(|u| {
+            if u.starts_with("//") {
+                format!("https:{u}")
+            } else {
+                u.to_string()
+            }
+        });
+
+        Ok(avatar_url)
     }
 }
 
