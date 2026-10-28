@@ -46,6 +46,9 @@ pub struct EmbeddedPlayerController {
     /// Monotonic media-load counter. Increments on every `load_media`; used to
     /// reason about which load asynchronous events belong to.
     generation: u64,
+    /// Picture-in-Picture mode enabled flag: if true, navigating away from watch
+    /// does not automatically stop playback.
+    pub pip_enabled: bool,
 }
 
 impl EmbeddedPlayerController {
@@ -62,7 +65,12 @@ impl EmbeddedPlayerController {
             reloading_for_recovery: false,
             media_loaded: false,
             generation: 0,
+            pip_enabled: false,
         }
+    }
+
+    pub fn set_pip_enabled(&mut self, enabled: bool) {
+        self.pip_enabled = enabled;
     }
 
     pub fn is_initialized(&self) -> bool {
@@ -267,7 +275,7 @@ impl EmbeddedPlayerController {
 
         self.was_on_watch_page = is_watch_page;
 
-        if !is_watch_page {
+        if !is_watch_page && !self.pip_enabled {
             if let Err(error) = self.stop() {
                 eprintln!("[MutsukiTube] Navigation stop error: {error}");
             }

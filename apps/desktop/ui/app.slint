@@ -28,15 +28,39 @@ import {
 import {
     LibraryPage,
 } from "pages/library-page.slint";
+import { Sidebar } from "components/sidebar.slint";
+import { FloatingPip } from "components/floating-pip.slint";
+import { Theme } from "theme.slint";
 
 export component AppWindow inherits Window {
     title: "MutsukiTube";
+    icon: @image-url("assets/favicon.ico");
 
     preferred-width: 1200px;
     preferred-height: 760px;
 
     min-width: 800px;
     min-height: 600px;
+    background: Theme.bg;
+
+    // Responsive / Adaptive Sidebar state
+    in-out property <bool> user-collapsed: false;
+    in-out property <bool> is-sidebar-collapsed: false;
+
+    changed width => {
+        if (!root.user-collapsed) {
+            root.is-sidebar-collapsed = root.width < 960px;
+        }
+    }
+
+    // In-app Floating Picture-in-Picture state
+    in-out property <bool> pip-dismissed: false;
+    out property <bool> pip-active:
+        root.current-page != "watch"
+        && !root.fullscreen-mode
+        && !root.pip-dismissed
+        && (root.playback-state == "playing" || root.playback-state == "paused")
+        && (root.selected-video-id != "" || root.selected-video-title != "");
 
     in-out property <string> current-page: "youtube-home";
     in-out property <[VideoItem]> videos;
@@ -168,367 +192,459 @@ export component AppWindow inherits Window {
     callback nav-anime();
     callback nav-anime-details(string);
     callback nav-home();
+    callback nav-watch();
 
     changed current-page => {
         if (root.current-page == "watch") {
+            root.pip-dismissed = false;
             shortcut-scope.focus();
         }
     }
 
     out property <float> video-x:
-        watch-page.video-surface-x / 1px;
+        (root.current-page == "watch")
+            ? (watch-page.video-surface-x / 1px)
+            : (root.pip-active ? (pip-player.video-surface-x / 1px) : 0);
 
     out property <float> video-y:
-        watch-page.video-surface-y / 1px;
+        (root.current-page == "watch")
+            ? (watch-page.video-surface-y / 1px)
+            : (root.pip-active ? (pip-player.video-surface-y / 1px) : 0);
 
     out property <float> video-width:
-        watch-page.video-surface-width / 1px;
+        (root.current-page == "watch")
+            ? (watch-page.video-surface-width / 1px)
+            : (root.pip-active ? (pip-player.video-surface-width / 1px) : 0);
 
     out property <float> video-height:
-        watch-page.video-surface-height / 1px;
+        (root.current-page == "watch")
+            ? (watch-page.video-surface-height / 1px)
+            : (root.pip-active ? (pip-player.video-surface-height / 1px) : 0);
 
     /// True while the user is interacting with the seek slider. Read by Rust so
     /// live timeline updates do not yank the thumb mid-drag.
     in-out property <bool> timeline-seek-active: false;
 
-    if root.current-page == "youtube-home": HomePage {
-        videos: root.home-videos;
-        continue-videos: root.home-continue-videos;
-        favorite-videos: root.home-favorite-videos;
-        home-loading: root.home-loading;
-        home-status-text: root.home-status-text;
-        selected-topic: root.home-selected-topic;
+    HorizontalLayout {
+        spacing: 0px;
 
-        search(query) => {
-            root.nav-search(query);
-        }
+        if !root.fullscreen-mode: Sidebar {
+            current-page: root.current-page;
+            collapsed: root.is-sidebar-collapsed;
 
-        open-video(id) => {
-            root.open-video(id);
-        }
-
-        show-history => {
-            root.nav-history();
-        }
-
-        show-settings => {
-            root.nav-settings();
-        }
-
-        show-library => {
-            root.library-mode = "favorites";
-            root.selected-playlist = "";
-            root.nav-favorites();
-        }
-
-        show-favorites => {
-            root.nav-favorites();
-        }
-
-        show-anime => {
-            root.nav-anime();
-        }
-
-        select-topic(topic) => {
-            root.home-selected-topic = topic;
-            root.load-home-topic(topic);
-        }
-
-        load-more => {
-            root.load-more();
-        }
-    }
-
-    if root.current-page == "search": SearchPage {
-        videos: root.videos;
-        loading: root.loading;
-        loading-more: root.loading-more;
-        has-more: root.has-more;
-        status-text: root.status-text;
-        search-query: root.search-query;
-
-        search(query) => {
-            root.nav-search(query);
-        }
-
-        open-video(id) => {
-            root.open-video(id);
-        }
-
-        load-more => {
-            root.load-more();
-        }
-
-        show-history => {
-            root.nav-history();
-        }
-
-        show-settings => {
-            root.nav-settings();
-        }
-
-        show-library => {
-            root.library-mode = "favorites";
-            root.selected-playlist = "";
-            root.nav-favorites();
-        }
-
-        show-anime => {
-            root.nav-anime();
-        }
-
-        back => {
-            root.nav-back();
-        }
-    }
-
-    if root.current-page == "anime": AnimePage {
-        view: root.anime-view;
-        plugins-ready: root.anime-plugins-ready;
-
-        status-text: root.anime-status-text;
-        status-kind: root.anime-status-kind;
-        loading: root.anime-loading;
-
-        continue-cards: root.anime-continue-cards;
-        recent-cards: root.anime-recent-cards;
-        favorite-cards: root.anime-favorite-cards;
-        result-cards: root.anime-result-cards;
-        results-heading: root.anime-results-heading;
-        selected-key: root.anime-selected-key;
-
-        detail-title: root.anime-detail-title;
-        detail-subtitle: root.anime-detail-subtitle;
-        detail-description: root.anime-detail-description;
-        detail-badge: root.anime-detail-badge;
-        detail-poster: root.anime-detail-poster;
-        detail-has-poster: root.anime-detail-has-poster;
-        detail-favorite: root.anime-detail-favorite;
-        detail-loading-text: root.anime-detail-loading-text;
-        episodes: root.anime-episode-items;
-        selected-episode-number: root.anime-selected-episode-number;
-        resume-label: root.anime-resume-label;
-
-        qualities: root.anime-qualities;
-        selected-quality: root.selected-anime-quality;
-
-        search(query) => {
-            root.anime-search(query);
-        }
-
-        select-anime(key) => {
-            root.nav-anime-details(key);
-        }
-
-        select-episode(number) => {
-            root.anime-select-episode(number);
-        }
-
-        play => {
-            root.anime-play();
-        }
-
-        resume => {
-            root.anime-resume();
-        }
-
-        toggle-favorite => {
-            root.anime-toggle-favorite();
-        }
-
-        install-plugins => {
-            root.anime-install-plugins();
-        }
-
-        back => {
-            root.nav-back();
-        }
-    }
-
-    shortcut-scope := FocusScope {
-        x: 0px;
-        y: 0px;
-        width: parent.width;
-        height: parent.height;
-
-        visible: root.current-page == "watch";
-        enabled: root.current-page == "watch";
-
-        focus-on-click: true;
-
-        capture-key-pressed(event) => {
-            if (root.current-page != "watch") {
-                return reject;
+            nav-home => {
+                root.nav-home();
             }
-            if (event.repeat
-                || event.modifiers.control
-                || event.modifiers.alt
-                || event.modifiers.meta) {
-                return reject;
+
+            nav-search => {
+                root.nav-search(root.search-query);
             }
-            if (event.text == " ") {
-                if (root.player-ready) {
+
+            nav-anime => {
+                root.nav-anime();
+            }
+
+            nav-library => {
+                root.library-mode = "favorites";
+                root.selected-playlist = "";
+                root.nav-favorites();
+            }
+
+            nav-history => {
+                root.nav-history();
+            }
+
+            nav-settings => {
+                root.nav-settings();
+            }
+
+            toggle-collapse => {
+                root.user-collapsed = !root.is-sidebar-collapsed;
+                root.is-sidebar-collapsed = !root.is-sidebar-collapsed;
+            }
+        }
+
+        content-area := Rectangle {
+            horizontal-stretch: 1;
+            background: Theme.bg;
+            clip: true;
+
+            if root.current-page == "youtube-home": HomePage {
+                width: parent.width;
+                height: parent.height;
+                videos: root.home-videos;
+                continue-videos: root.home-continue-videos;
+                favorite-videos: root.home-favorite-videos;
+                home-loading: root.home-loading;
+                home-status-text: root.home-status-text;
+                selected-topic: root.home-selected-topic;
+
+                search(query) => {
+                    root.nav-search(query);
+                }
+
+                open-video(id) => {
+                    root.open-video(id);
+                }
+
+                show-history => {
+                    root.nav-history();
+                }
+
+                show-settings => {
+                    root.nav-settings();
+                }
+
+                show-library => {
+                    root.library-mode = "favorites";
+                    root.selected-playlist = "";
+                    root.nav-favorites();
+                }
+
+                show-favorites => {
+                    root.nav-favorites();
+                }
+
+                show-anime => {
+                    root.nav-anime();
+                }
+
+                select-topic(topic) => {
+                    root.home-selected-topic = topic;
+                    root.load-home-topic(topic);
+                }
+
+                load-more => {
+                    root.load-more();
+                }
+            }
+
+            if root.current-page == "search": SearchPage {
+                width: parent.width;
+                height: parent.height;
+                videos: root.videos;
+                loading: root.loading;
+                loading-more: root.loading-more;
+                has-more: root.has-more;
+                status-text: root.status-text;
+                search-query: root.search-query;
+
+                search(query) => {
+                    root.nav-search(query);
+                }
+
+                open-video(id) => {
+                    root.open-video(id);
+                }
+
+                load-more => {
+                    root.load-more();
+                }
+
+                show-history => {
+                    root.nav-history();
+                }
+
+                show-settings => {
+                    root.nav-settings();
+                }
+
+                show-library => {
+                    root.library-mode = "favorites";
+                    root.selected-playlist = "";
+                    root.nav-favorites();
+                }
+
+                show-anime => {
+                    root.nav-anime();
+                }
+
+                back => {
+                    root.nav-back();
+                }
+            }
+
+            if root.current-page == "anime": AnimePage {
+                width: parent.width;
+                height: parent.height;
+                view: root.anime-view;
+                plugins-ready: root.anime-plugins-ready;
+
+                status-text: root.anime-status-text;
+                status-kind: root.anime-status-kind;
+                loading: root.anime-loading;
+
+                continue-cards: root.anime-continue-cards;
+                recent-cards: root.anime-recent-cards;
+                favorite-cards: root.anime-favorite-cards;
+                result-cards: root.anime-result-cards;
+                results-heading: root.anime-results-heading;
+                selected-key: root.anime-selected-key;
+
+                detail-title: root.anime-detail-title;
+                detail-subtitle: root.anime-detail-subtitle;
+                detail-description: root.anime-detail-description;
+                detail-badge: root.anime-detail-badge;
+                detail-poster: root.anime-detail-poster;
+                detail-has-poster: root.anime-detail-has-poster;
+                detail-favorite: root.anime-detail-favorite;
+                detail-loading-text: root.anime-detail-loading-text;
+                episodes: root.anime-episode-items;
+                selected-episode-number: root.anime-selected-episode-number;
+                resume-label: root.anime-resume-label;
+
+                qualities: root.anime-qualities;
+                selected-quality: root.selected-anime-quality;
+
+                search(query) => {
+                    root.anime-search(query);
+                }
+
+                select-anime(key) => {
+                    root.nav-anime-details(key);
+                }
+
+                select-episode(number) => {
+                    root.anime-select-episode(number);
+                }
+
+                play => {
+                    root.anime-play();
+                }
+
+                resume => {
+                    root.anime-resume();
+                }
+
+                toggle-favorite => {
+                    root.anime-toggle-favorite();
+                }
+
+                install-plugins => {
+                    root.anime-install-plugins();
+                }
+
+                back => {
+                    root.nav-back();
+                }
+            }
+
+            shortcut-scope := FocusScope {
+                x: 0px;
+                y: 0px;
+                width: parent.width;
+                height: parent.height;
+
+                visible: root.current-page == "watch";
+                enabled: root.current-page == "watch";
+
+                focus-on-click: true;
+
+                capture-key-pressed(event) => {
+                    if (root.current-page != "watch") {
+                        return reject;
+                    }
+                    if (event.repeat
+                        || event.modifiers.control
+                        || event.modifiers.alt
+                        || event.modifiers.meta) {
+                        return reject;
+                    }
+                    if (event.text == " ") {
+                        if (root.player-ready) {
+                            root.toggle-playback();
+                        }
+                        return accept;
+                    }
+                    if (event.text == "f" || event.text == "F") {
+                        if (root.player-ready) {
+                            root.toggle-fullscreen();
+                        }
+                        return accept;
+                    }
+                    if (event.text == Key.Escape) {
+                        if (root.fullscreen-mode) {
+                            root.toggle-fullscreen();
+                            return accept;
+                        }
+                    }
+                    if (event.text == "m" || event.text == "M") {
+                        if (root.player-ready) {
+                            root.toggle-mute();
+                        }
+                        return accept;
+                    }
+                    reject
+                }
+
+                watch-page := WatchPage {
+                    width: parent.width;
+                    height: parent.height;
+
+                    video-id: root.selected-video-id;
+                    video-title: root.selected-video-title;
+                    channel: root.selected-video-channel;
+
+                    playlists: root.playlist-names;
+                    library-status: root.watch-library-status;
+
+                    player-ready: root.player-ready;
+                    player-paused: root.player-paused;
+
+                    playback-position <=> root.playback-position;
+                    seeking <=> root.timeline-seek-active;
+                    playback-duration: root.playback-duration;
+                    playback-volume: root.playback-volume;
+                    playback-state: root.playback-state;
+
+                    fullscreen-mode: root.fullscreen-mode;
+
+                    player-muted: root.player-muted;
+
+                    back => {
+                        root.nav-back();
+                    }
+
+                    play(id) => {
+                        root.play-video(id);
+                    }
+
+                    toggle-playback => {
+                        root.toggle-playback();
+                    }
+
+                    stop-playback => {
+                        root.stop-playback();
+                    }
+
+                    seek-playback(value) => {
+                        root.seek-playback(value);
+                    }
+
+                    change-volume(value) => {
+                        root.change-volume(value);
+                    }
+
+                    replay => {
+                        root.replay-video();
+                    }
+
+                    toggle-fullscreen => {
+                        root.toggle-fullscreen();
+                    }
+
+                    toggle-favorite => {
+                        root.toggle-favorite();
+                    }
+
+                    add-to-playlist(name) => {
+                        root.add-to-playlist(name);
+                    }
+
+                    open-in-browser(id) => {
+                        root.open-video-browser(id);
+                    }
+                }
+            }
+
+            if root.current-page == "history": HistoryPage {
+                width: parent.width;
+                height: parent.height;
+                videos: root.history-videos;
+                loading: root.history-loading;
+                status-text: root.history-status;
+
+                back => {
+                    root.nav-back();
+                }
+
+                open-video(id) => {
+                    root.open-video(id);
+                }
+
+                refresh => {
+                    root.refresh-history();
+                }
+            }
+
+            if root.current-page == "settings": SettingsPage {
+                width: parent.width;
+                height: parent.height;
+                provider-mode: root.provider-mode;
+                status-text: root.settings-status;
+
+                back => {
+                    root.nav-back();
+                }
+
+                save-provider(mode) => {
+                    root.save-provider(mode);
+                }
+            }
+
+            if root.current-page == "library": LibraryPage {
+                width: parent.width;
+                height: parent.height;
+                videos: root.library-videos;
+                playlists: root.playlist-names;
+
+                library-mode: root.library-mode;
+                selected-playlist: root.selected-playlist;
+
+                loading: root.library-loading;
+                status-text: root.library-status;
+
+                back => {
+                    root.nav-back();
+                }
+
+                open-video(id) => {
+                    root.open-video(id);
+                }
+
+                show-favorites => {
+                    root.nav-favorites();
+                }
+
+                select-playlist(name) => {
+                    root.library-mode = "playlist";
+                    root.selected-playlist = name;
+                    root.nav-library-playlist(name);
+                }
+
+                create-playlist(name) => {
+                    root.create-playlist(name);
+                }
+
+                refresh => {
+                    root.refresh-library();
+                }
+            }
+
+            // In-App Floating Picture-in-Picture Mini-Player
+            pip-player := FloatingPip {
+                x: parent.width - self.width - 24px;
+                y: parent.height - self.height - 24px;
+                visible: root.pip-active;
+
+                video-title: root.selected-video-title;
+                video-channel: root.selected-video-channel;
+                player-paused: root.player-paused;
+                playback-state: root.playback-state;
+
+                toggle-playback => {
                     root.toggle-playback();
                 }
-                return accept;
-            }
-            if (event.text == "f" || event.text == "F") {
-                if (root.player-ready) {
-                    root.toggle-fullscreen();
+
+                close => {
+                    root.pip-dismissed = true;
+                    root.stop-playback();
                 }
-                return accept;
-            }
-            if (event.text == Key.Escape) {
-                if (root.fullscreen-mode) {
-                    root.toggle-fullscreen();
-                    return accept;
+
+                expand => {
+                    root.nav-watch();
                 }
             }
-            if (event.text == "m" || event.text == "M") {
-                if (root.player-ready) {
-                    root.toggle-mute();
-                }
-                return accept;
-            }
-            reject
-        }
-
-        watch-page := WatchPage {
-
-            width: parent.width;
-            height: parent.height;
-
-            video-id: root.selected-video-id;
-            video-title: root.selected-video-title;
-            channel: root.selected-video-channel;
-
-            playlists: root.playlist-names;
-            library-status: root.watch-library-status;
-
-            player-ready: root.player-ready;
-            player-paused: root.player-paused;
-
-            playback-position <=> root.playback-position;
-            seeking <=> root.timeline-seek-active;
-            playback-duration: root.playback-duration;
-            playback-volume: root.playback-volume;
-            playback-state: root.playback-state;
-
-            fullscreen-mode: root.fullscreen-mode;
-
-            player-muted: root.player-muted;
-
-            back => {
-                root.nav-back();
-            }
-
-            play(id) => {
-                root.play-video(id);
-            }
-
-            toggle-playback => {
-                root.toggle-playback();
-            }
-
-            stop-playback => {
-                root.stop-playback();
-            }
-
-            seek-playback(value) => {
-                root.seek-playback(value);
-            }
-
-            change-volume(value) => {
-                root.change-volume(value);
-            }
-
-            replay => {
-                root.replay-video();
-            }
-
-            toggle-fullscreen => {
-                root.toggle-fullscreen();
-            }
-
-            toggle-favorite => {
-                root.toggle-favorite();
-            }
-
-            add-to-playlist(name) => {
-                root.add-to-playlist(name);
-            }
-
-            open-in-browser(id) => {
-                root.open-video-browser(id);
-            }
-        }
-    }
-
-    if root.current-page == "history": HistoryPage {
-        videos: root.history-videos;
-        loading: root.history-loading;
-        status-text: root.history-status;
-
-        back => {
-            root.nav-back();
-        }
-
-        open-video(id) => {
-            root.open-video(id);
-        }
-
-        refresh => {
-            root.refresh-history();
-        }
-    }
-
-    if root.current-page == "settings": SettingsPage {
-        provider-mode: root.provider-mode;
-        status-text: root.settings-status;
-
-        back => {
-            root.nav-back();
-        }
-
-        save-provider(mode) => {
-            root.save-provider(mode);
-        }
-    }
-
-    if root.current-page == "library": LibraryPage {
-        videos: root.library-videos;
-        playlists: root.playlist-names;
-
-        library-mode: root.library-mode;
-        selected-playlist: root.selected-playlist;
-
-        loading: root.library-loading;
-        status-text: root.library-status;
-
-        back => {
-            root.nav-back();
-        }
-
-        open-video(id) => {
-            root.open-video(id);
-        }
-
-        show-favorites => {
-            root.nav-favorites();
-        }
-
-        select-playlist(name) => {
-            root.library-mode = "playlist";
-            root.selected-playlist = name;
-            root.nav-library-playlist(name);
-        }
-
-        create-playlist(name) => {
-            root.create-playlist(name);
-        }
-
-        refresh => {
-            root.refresh-library();
         }
     }
 }

@@ -5,12 +5,14 @@ import {
     VerticalBox,
     HorizontalBox,
     ScrollView,
+    Spinner,
 } from "std-widgets.slint";
 
 import {
     VideoCard,
     VideoItem,
 } from "../components/video-card.slint";
+import { Theme } from "../theme.slint";
 
 export component LibraryPage inherits Rectangle {
     in property <[VideoItem]> videos;
@@ -29,96 +31,129 @@ export component LibraryPage inherits Rectangle {
     callback open-video(string);
     callback refresh();
 
-    background: #0f0f0f;
+    background: Theme.bg;
 
     VerticalBox {
         padding: 20px;
-        spacing: 14px;
+        spacing: 16px;
 
+        // Header
         HorizontalBox {
             spacing: 12px;
+            alignment: center;
 
             Button {
-                text: "Back";
-
+                text: "‹ Back";
                 clicked => {
                     root.back();
                 }
             }
 
             Text {
-                text: "Your Library";
-                color: white;
-                font-size: 26px;
+                text: "Media Library";
+                color: Theme.text-primary;
+                font-size: 20px;
                 font-weight: 700;
+                vertical-alignment: center;
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+                background: transparent;
+            }
+
+            if root.loading: Spinner {
+                width: 18px;
+                height: 18px;
             }
 
             Button {
                 text: "Refresh";
                 enabled: !root.loading;
-
                 clicked => {
                     root.refresh();
                 }
             }
         }
 
+        // Subheader navigation & playlist selector
         HorizontalBox {
             spacing: 10px;
+            alignment: center;
 
             Button {
                 text: "Favorites";
+                primary: root.library-mode == "favorites";
                 enabled: !root.loading;
-
                 clicked => {
                     root.show-favorites();
                 }
             }
 
+            Text {
+                text: "Playlists:";
+                color: Theme.text-secondary;
+                font-size: 13px;
+                vertical-alignment: center;
+            }
+
             ComboBox {
                 model: root.playlists;
                 current-value: root.selected-playlist;
+                enabled: root.playlists.length > 0;
 
                 selected(name) => {
                     root.select-playlist(name);
                 }
             }
-        }
 
-        HorizontalBox {
-            spacing: 10px;
+            Rectangle {
+                horizontal-stretch: 1;
+                background: transparent;
+            }
 
             playlist-name := LineEdit {
-                placeholder-text: "New playlist name";
+                placeholder-text: "New playlist name...";
+                min-width: 180px;
             }
 
             Button {
-                text: "Create Playlist";
+                text: "Create";
+                enabled: playlist-name.text != "" && !root.loading;
 
                 clicked => {
                     root.create-playlist(playlist-name.text);
+                    playlist-name.text = "";
                 }
             }
         }
 
-        Text {
-            text: root.library-mode == "favorites"
-                ? "Favorites"
-                : "Playlist: " + root.selected-playlist;
-
-            color: white;
-            font-size: 20px;
-            font-weight: 600;
-        }
-
         if root.status-text != "": Text {
             text: root.status-text;
-            color: #aaaaaa;
+            color: Theme.text-muted;
+            font-size: 13px;
         }
 
         ScrollView {
+            horizontal-stretch: 1;
+            vertical-stretch: 1;
+
             VerticalLayout {
-                spacing: 8px;
+                spacing: 10px;
+                padding-bottom: 20px;
+
+                if root.videos.length == 0 && !root.loading: HorizontalBox {
+                    alignment: center;
+                    padding-top: 40px;
+
+                    Text {
+                        text: root.library-mode == "favorites"
+                            ? "No favorite videos saved yet."
+                            : "This playlist is currently empty.";
+                        color: Theme.text-muted;
+                        font-size: 14px;
+                    }
+                }
 
                 for video in root.videos: VideoCard {
                     video: video;

@@ -1,0 +1,150 @@
+import { Theme } from "../theme.slint";
+
+export component FloatingPip inherits Rectangle {
+    in property <string> video-title: "";
+    in property <string> video-channel: "";
+    in property <bool> player-paused: true;
+    in property <string> playback-state: "idle";
+
+    callback toggle-playback();
+    callback close();
+    callback expand();
+
+    out property <length> video-surface-x: video-surface.absolute-position.x;
+    out property <length> video-surface-y: video-surface.absolute-position.y;
+    out property <length> video-surface-width: video-surface.width;
+    out property <length> video-surface-height: video-surface.height;
+
+    width: 320px;
+    height: 232px;
+    border-radius: Theme.radius;
+    background: Theme.surface-elevated;
+    border-width: 1px;
+    border-color: Theme.border-strong;
+    clip: true;
+
+    VerticalLayout {
+        spacing: 0px;
+
+        // Video Viewport (16:9 aspect ratio: 320x180)
+        video-surface := Rectangle {
+            width: 320px;
+            height: 180px;
+            background: #000000;
+        }
+
+        // Control footer bar
+        Rectangle {
+            height: 52px;
+            background: Theme.surface-elevated;
+
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 12px;
+                spacing: 8px;
+                alignment: space-between;
+                cross-axis-alignment: center;
+
+                // Title and Channel text
+                info-touch := TouchArea {
+                    horizontal-stretch: 1;
+                    clicked => { root.expand(); }
+
+                    VerticalLayout {
+                        spacing: 2px;
+                        alignment: center;
+
+                        Text {
+                            text: root.video-title != "" ? root.video-title : "Now Playing";
+                            color: Theme.text-primary;
+                            font-size: 13px;
+                            font-weight: 600;
+                            overflow: elide;
+                            max-lines: 1;
+                        }
+
+                        Text {
+                            text: root.video-channel != "" ? root.video-channel : "MutsukiTube";
+                            color: Theme.text-secondary;
+                            font-size: 11px;
+                            overflow: elide;
+                            max-lines: 1;
+                        }
+                    }
+                }
+
+                // Action Controls
+                HorizontalLayout {
+                    spacing: 6px;
+                    cross-axis-alignment: center;
+
+                    // Play/Pause
+                    Rectangle {
+                        width: 30px;
+                        height: 30px;
+                        border-radius: Theme.radius-sm;
+                        background: play-touch.has-hover ? Theme.surface-hover : transparent;
+
+                        Image {
+                            source: root.player-paused
+                                ? @image-url("../assets/play.svg")
+                                : @image-url("../assets/pause.svg");
+                            width: 14px;
+                            height: 14px;
+                            colorize: Theme.text-primary;
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                        }
+
+                        play-touch := TouchArea {
+                            clicked => { root.toggle-playback(); }
+                        }
+                    }
+
+                    // Expand to WatchPage
+                    Rectangle {
+                        width: 30px;
+                        height: 30px;
+                        border-radius: Theme.radius-sm;
+                        background: expand-touch.has-hover ? Theme.surface-hover : transparent;
+
+                        Image {
+                            source: @image-url("../assets/full-screen.svg");
+                            width: 14px;
+                            height: 14px;
+                            colorize: Theme.text-primary;
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                        }
+
+                        expand-touch := TouchArea {
+                            clicked => { root.expand(); }
+                        }
+                    }
+
+                    // Close PiP & Stop
+                    Rectangle {
+                        width: 30px;
+                        height: 30px;
+                        border-radius: Theme.radius-sm;
+                        background: close-touch.has-hover ? #ff453a26 : transparent;
+
+                        Image {
+                            source: @image-url("../assets/close.svg");
+                            width: 14px;
+                            height: 14px;
+                            colorize: close-touch.has-hover ? Theme.danger : Theme.text-secondary;
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                        }
+
+                        close-touch := TouchArea {
+                            clicked => { root.close(); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+

@@ -1,4 +1,3 @@
-
 import {
     Button,
     LineEdit,
@@ -12,9 +11,9 @@ import {
     VideoCard,
     VideoItem,
 } from "../components/video-card.slint";
+import { Theme } from "../theme.slint";
 
 export component SearchPage inherits Rectangle {
-
     in property <[VideoItem]> videos;
     in property <bool> loading: false;
     in property <bool> loading-more: false;
@@ -31,65 +30,28 @@ export component SearchPage inherits Rectangle {
     callback show-library();
     callback show-anime();
 
-    background: #0f0f0f;
+    background: Theme.bg;
 
     VerticalBox {
         padding: 20px;
-        spacing: 15px;
+        spacing: 16px;
 
+        // Clean Cupertino Search Header
         HorizontalBox {
             spacing: 12px;
             alignment: center;
 
-            Text {
-                text: "MutsukiTube";
-                color: #ffffff;
-                font-size: 27px;
-                font-weight: 700;
-                horizontal-alignment: left;
-                vertical-alignment: center;
-            }
-
             Button {
-                text: "History";
-                max-width: 110px;
-
+                text: "‹ Back";
                 clicked => {
-                    root.show-history();
+                    root.back();
                 }
             }
-
-            Button {
-                text: "Settings";
-
-                clicked => {
-                    root.show-settings();
-                }
-            }
-
-            Button {
-                text: "Library";
-
-                clicked => {
-                    root.show-library();
-                }
-            }
-
-            Button {
-                text: "Anime";
-
-                clicked => {
-                    root.show-anime();
-                }
-            }
-        }
-
-        HorizontalBox {
-            spacing: 8px;
 
             search-box := LineEdit {
                 placeholder-text: "Search YouTube...";
                 text <=> root.search-query;
+                horizontal-stretch: 1;
 
                 accepted => {
                     root.search(search-box.text);
@@ -98,7 +60,8 @@ export component SearchPage inherits Rectangle {
 
             Button {
                 text: "Search";
-                enabled: !root.loading;
+                primary: true;
+                enabled: !root.loading && search-box.text != "";
 
                 clicked => {
                     root.search(search-box.text);
@@ -107,29 +70,35 @@ export component SearchPage inherits Rectangle {
         }
 
         if root.loading: HorizontalBox {
-            spacing: 8px;
+            spacing: 10px;
+            alignment: start;
 
             Spinner {
-                width: 22px;
-                height: 22px;
+                width: 18px;
+                height: 18px;
             }
 
             Text {
                 text: "Searching...";
-                color: #aaaaaa;
+                color: Theme.text-secondary;
+                font-size: 13px;
                 vertical-alignment: center;
             }
         }
 
         if root.status-text != "": Text {
             text: root.status-text;
-            color: #999999;
+            color: Theme.text-muted;
             font-size: 13px;
         }
 
         ScrollView {
+            horizontal-stretch: 1;
+            vertical-stretch: 1;
+
             VerticalLayout {
-                spacing: 8px;
+                spacing: 10px;
+                padding-bottom: 20px;
 
                 for video in root.videos: VideoCard {
                     video: video;
@@ -139,15 +108,20 @@ export component SearchPage inherits Rectangle {
                     }
                 }
 
-                if root.has-more: Button {
-                    text: root.loading-more
-                        ? "Loading more..."
-                        : "Load More Videos";
+                if root.has-more: HorizontalBox {
+                    alignment: center;
+                    padding-top: 10px;
 
-                    enabled: !root.loading-more && !root.loading;
+                    Button {
+                        text: root.loading-more
+                            ? "Loading more..."
+                            : "Load More Videos";
 
-                    clicked => {
-                        root.load-more();
+                        enabled: !root.loading-more && !root.loading;
+
+                        clicked => {
+                            root.load-more();
+                        }
                     }
                 }
             }

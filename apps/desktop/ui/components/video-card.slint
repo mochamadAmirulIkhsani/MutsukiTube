@@ -1,3 +1,5 @@
+import { Theme } from "../theme.slint";
+
 export struct VideoItem {
     id: string,
     title: string,
@@ -6,25 +8,25 @@ export struct VideoItem {
     thumbnail: image,
 }
 
+/// Horizontal video card (used in Search, History, Library lists)
 export component VideoCard inherits Rectangle {
     in property <VideoItem> video;
 
     callback clicked(string);
 
-    height: 118px;
+    height: 112px;
+    border-radius: Theme.radius;
 
-    border-radius: 10px;
+    background: touch.has-hover
+        ? Theme.surface-hover
+        : Theme.surface;
 
-    background:
-        touch.has-hover
-        ? #252525
-        : #181818;
+    border-width: 1px;
+    border-color: touch.has-hover ? Theme.border-strong : Theme.border;
 
     touch := TouchArea {
         clicked => {
-            root.clicked(
-                root.video.id
-            );
+            root.clicked(root.video.id);
         }
     }
 
@@ -33,57 +35,151 @@ export component VideoCard inherits Rectangle {
         spacing: 14px;
 
         Rectangle {
-            width: 170px;
-
-            border-radius: 8px;
-
+            width: 160px;
+            border-radius: Theme.radius-sm;
             clip: true;
-
-            background: #303030;
+            background: Theme.surface-sunken;
 
             Image {
-                source:
-                    root.video.thumbnail;
-
+                source: root.video.thumbnail;
                 width: 100%;
                 height: 100%;
-
                 image-fit: cover;
+            }
+
+            // Duration badge in thumbnail corner
+            if root.video.duration != "": Rectangle {
+                x: parent.width - self.width - 6px;
+                y: parent.height - self.height - 6px;
+                height: 18px;
+                width: dur-text.preferred-width + 8px;
+                border-radius: 3px;
+                background: #000000d0;
+
+                dur-text := Text {
+                    text: root.video.duration;
+                    color: #ffffff;
+                    font-size: 11px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-alignment: center;
+                }
             }
         }
 
         VerticalLayout {
-            padding-top: 7px;
-            spacing: 7px;
+            padding-top: 4px;
+            padding-bottom: 4px;
+            spacing: 6px;
+            alignment: space-between;
 
             Text {
-                text:
-                    root.video.title;
-
-                color: white;
-
-                font-size: 17px;
+                text: root.video.title;
+                color: touch.has-hover ? Theme.accent : Theme.text-primary;
+                font-size: 15px;
                 font-weight: 600;
-
                 wrap: word-wrap;
+                max-lines: 2;
+                overflow: elide;
             }
 
             Text {
-                text:
-                    root.video.channel;
-
-                color: #aaaaaa;
-
-                font-size: 14px;
-            }
-
-            Text {
-                text:
-                    root.video.duration;
-
-                color: #888888;
-
+                text: root.video.channel;
+                color: Theme.text-secondary;
                 font-size: 13px;
+                overflow: elide;
+                max-lines: 1;
+            }
+        }
+    }
+}
+
+/// 16:9 Grid video card for modern Home explore feed and shelves
+export component GridVideoCard inherits Rectangle {
+    in property <VideoItem> video;
+
+    callback clicked(string);
+
+    width: 250px;
+    height: 218px;
+    border-radius: Theme.radius;
+    background: transparent;
+
+    touch := TouchArea {
+        clicked => {
+            root.clicked(root.video.id);
+        }
+    }
+
+    VerticalLayout {
+        spacing: 8px;
+
+        // 16:9 Thumbnail
+        Rectangle {
+            height: 140px;
+            border-radius: Theme.radius-sm;
+            clip: true;
+            background: Theme.surface-sunken;
+
+            border-width: 1px;
+            border-color: touch.has-hover ? Theme.accent : Theme.border;
+
+            Image {
+                source: root.video.thumbnail;
+                width: 100%;
+                height: 100%;
+                image-fit: cover;
+            }
+
+            // Duration badge overlaid at bottom right
+            if root.video.duration != "": Rectangle {
+                x: parent.width - self.width - 6px;
+                y: parent.height - self.height - 6px;
+                height: 20px;
+                width: grid-dur.preferred-width + 10px;
+                border-radius: 4px;
+                background: #000000d9;
+
+                grid-dur := Text {
+                    text: root.video.duration;
+                    color: #ffffff;
+                    font-size: 11px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-alignment: center;
+                }
+            }
+
+            // Subtle highlight tint on hover
+            if touch.has-hover: Rectangle {
+                width: 100%;
+                height: 100%;
+                background: #ffffff0d;
+            }
+        }
+
+        // Card info
+        VerticalLayout {
+            spacing: 3px;
+            padding-left: 2px;
+            padding-right: 2px;
+
+            Text {
+                text: root.video.title;
+                color: touch.has-hover ? Theme.accent : Theme.text-primary;
+                font-size: 14px;
+                font-weight: 600;
+                wrap: word-wrap;
+                max-lines: 2;
+                overflow: elide;
+            }
+
+            Text {
+                text: root.video.channel;
+                color: Theme.text-secondary;
+                font-size: 12px;
+                overflow: elide;
+                max-lines: 1;
             }
         }
     }

@@ -3,12 +3,14 @@ import {
     VerticalBox,
     HorizontalBox,
     ScrollView,
+    Spinner,
 } from "std-widgets.slint";
 
 import {
     VideoCard,
     VideoItem,
 } from "../components/video-card.slint";
+import { Theme } from "../theme.slint";
 
 export component HistoryPage inherits Rectangle {
     in property <[VideoItem]> videos;
@@ -19,18 +21,19 @@ export component HistoryPage inherits Rectangle {
     callback open-video(string);
     callback refresh();
 
-    background: #0f0f0f;
+    background: Theme.bg;
 
     VerticalBox {
         padding: 20px;
-        spacing: 15px;
+        spacing: 16px;
 
+        // Header
         HorizontalBox {
-            spacing: 10px;
+            spacing: 12px;
+            alignment: center;
 
             Button {
-                text: "Back";
-
+                text: "‹ Back";
                 clicked => {
                     root.back();
                 }
@@ -38,15 +41,25 @@ export component HistoryPage inherits Rectangle {
 
             Text {
                 text: "Watch History";
-                color: white;
-                font-size: 24px;
+                color: Theme.text-primary;
+                font-size: 20px;
                 font-weight: 700;
+                vertical-alignment: center;
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+                background: transparent;
+            }
+
+            if root.loading: Spinner {
+                width: 18px;
+                height: 18px;
             }
 
             Button {
                 text: "Refresh";
                 enabled: !root.loading;
-
                 clicked => {
                     root.refresh();
                 }
@@ -55,12 +68,28 @@ export component HistoryPage inherits Rectangle {
 
         if root.status-text != "": Text {
             text: root.status-text;
-            color: #aaaaaa;
+            color: Theme.text-muted;
+            font-size: 13px;
         }
 
         ScrollView {
+            horizontal-stretch: 1;
+            vertical-stretch: 1;
+
             VerticalLayout {
-                spacing: 8px;
+                spacing: 10px;
+                padding-bottom: 20px;
+
+                if root.videos.length == 0 && !root.loading: HorizontalBox {
+                    alignment: center;
+                    padding-top: 40px;
+
+                    Text {
+                        text: "No watch history recorded yet.";
+                        color: Theme.text-muted;
+                        font-size: 14px;
+                    }
+                }
 
                 for video in root.videos: VideoCard {
                     video: video;

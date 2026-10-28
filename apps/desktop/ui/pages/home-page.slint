@@ -7,13 +7,45 @@ import {
     HorizontalBox,
 } from "std-widgets.slint";
 
-import { VideoCard, VideoItem } from "../components/video-card.slint";
+import { VideoCard, GridVideoCard, VideoItem } from "../components/video-card.slint";
 import { Theme } from "../theme.slint";
-import {
-    PrimaryButton,
-    SecondaryButton,
-    ToggleButton,
-} from "../components/action-button.slint";
+
+component TopicPill inherits Rectangle {
+    in property <string> label: "";
+    in property <bool> active: false;
+    callback clicked();
+
+    height: 32px;
+    border-radius: 16px;
+
+    background: root.active
+        ? Theme.accent
+        : (touch.has-hover ? Theme.surface-hover : Theme.surface);
+
+    border-width: 1px;
+    border-color: root.active
+        ? Theme.accent
+        : (touch.has-hover ? Theme.border-strong : Theme.border);
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        alignment: center;
+        cross-axis-alignment: center;
+
+        Text {
+            text: root.label;
+            font-size: 13px;
+            font-weight: root.active ? 600 : 500;
+            color: root.active ? #ffffff : (touch.has-hover ? Theme.text-primary : Theme.text-secondary);
+            vertical-alignment: center;
+        }
+    }
+}
 
 export component HomePage inherits Rectangle {
     in property <[VideoItem]> videos;
@@ -38,88 +70,88 @@ export component HomePage inherits Rectangle {
 
     background: Theme.bg;
 
-    VerticalBox {
+    VerticalLayout {
         spacing: 0px;
 
-        // ---------------------------------------------------------------- header
+        // ------------------------------------------------------------- Top Bar
         Rectangle {
-            height: 64px;
-            background: Theme.surface-sunken;
+            height: 68px;
+            background: Theme.bg;
 
-            HorizontalBox {
-                padding-left: 20px;
-                padding-right: 20px;
-                spacing: 14px;
-                alignment: center;
+            Rectangle {
+                y: parent.height - 1px;
+                height: 1px;
+                width: 100%;
+                background: Theme.border;
+            }
 
-                SecondaryButton {
-                    label: "MutsukiTube";
-                    min-button-width: 100px;
-                    enabled: false;
-                }
+            HorizontalLayout {
+                padding-left: 24px;
+                padding-right: 24px;
+                spacing: 16px;
+                alignment: space-between;
+                cross-axis-alignment: center;
 
-                search-box := LineEdit {
-                    placeholder-text: "Search YouTube...";
-                    min-width: 320px;
-                    accepted => {
-                        root.search(search-box.text);
+                // Page Heading
+                VerticalLayout {
+                    spacing: 2px;
+                    alignment: center;
+
+                    Text {
+                        text: "Explore";
+                        color: Theme.text-primary;
+                        font-size: 20px;
+                        font-weight: 700;
+                    }
+
+                    Text {
+                        text: "Watch trending videos and community favorites";
+                        color: Theme.text-secondary;
+                        font-size: 12px;
                     }
                 }
 
-                SecondaryButton {
-                    label: "Search";
-                    min-button-width: 88px;
-                    enabled: !root.home-loading && search-box.text != "";
-                    clicked => {
-                        root.search(search-box.text);
+                // Integrated Search Box
+                HorizontalLayout {
+                    spacing: 8px;
+                    cross-axis-alignment: center;
+
+                    search-box := LineEdit {
+                        placeholder-text: "Search YouTube...";
+                        min-width: 280px;
+
+                        accepted => {
+                            root.search(search-box.text);
+                        }
                     }
-                }
 
-                Rectangle {
-                    horizontal-stretch: 1;
-                    background: transparent;
-                }
-
-                SecondaryButton {
-                    label: "History";
-                    min-button-width: 88px;
-                    clicked => {
-                        root.show-history();
-                    }
-                }
-
-                SecondaryButton {
-                    label: "Favorites";
-                    min-button-width: 88px;
-                    clicked => {
-                        root.show-favorites();
-                    }
-                }
-
-                SecondaryButton {
-                    label: "Anime";
-                    min-button-width: 88px;
-                    clicked => {
-                        root.show-anime();
+                    Button {
+                        text: "Search";
+                        primary: true;
+                        enabled: !root.home-loading && search-box.text != "";
+                        clicked => {
+                            root.search(search-box.text);
+                        }
                     }
                 }
             }
         }
 
-        // ------------------------------------------------------------ status bar
+        // ---------------------------------------------------------- Status Bar
         if root.home-loading || root.home-status-text != "": Rectangle {
-            height: 34px;
-            background: Theme.bg;
+            height: 32px;
+            background: Theme.surface-sunken;
 
-            HorizontalBox {
-                padding-left: 20px;
-                padding-right: 20px;
+            HorizontalLayout {
+                padding-left: 24px;
+                padding-right: 24px;
                 spacing: 10px;
-                alignment: center;
+                alignment: start;
+                cross-axis-alignment: center;
 
                 if root.home-loading: Spinner {
-                    width: 16px;
-                    height: 16px;
+                    width: 14px;
+                    height: 14px;
                 }
 
                 Text {
@@ -131,75 +163,95 @@ export component HomePage inherits Rectangle {
             }
         }
 
-        // ------------------------------------------------------------------- body
+        // ---------------------------------------------------- Main Scroll Area
         ScrollView {
             vertical-stretch: 1;
             horizontal-scrollbar-policy: always-off;
             vertical-scrollbar-policy: as-needed;
 
-            VerticalBox {
-                padding: 22px;
-                spacing: 26px;
+            VerticalLayout {
+                padding: 24px;
+                spacing: 28px;
 
-                // ------------------------------------------------------- topic chips
-                HorizontalBox {
-                    spacing: 10px;
+                // ---------------------------------------- Topic Segmented Pills
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+                    cross-axis-alignment: center;
 
-                    Text {
-                        text: "Explore";
-                        color: Theme.text-primary;
-                        font-size: 20px;
-                        font-weight: 700;
-                        vertical-alignment: center;
-                    }
-
-                    Rectangle {
-                        horizontal-stretch: 1;
-                        background: transparent;
-                    }
-
-                    topic-chip := ToggleButton {
+                    TopicPill {
                         label: "All";
-                        selected: root.selected-topic == "";
-                        min-button-width: 64px;
-                        clicked => {
-                            root.select-topic("");
-                        }
+                        active: root.selected-topic == "";
+                        clicked => { root.select-topic(""); }
                     }
 
-                    for topic in ["Music", "Gaming", "Technology", "Podcasts", "Education"]: ToggleButton {
-                        label: topic;
-                        selected: root.selected-topic == topic;
-                        min-button-width: 96px;
-                        clicked => {
-                            root.select-topic(topic);
-                        }
+                    TopicPill {
+                        label: "Music";
+                        active: root.selected-topic == "Music";
+                        clicked => { root.select-topic("Music"); }
+                    }
+
+                    TopicPill {
+                        label: "Gaming";
+                        active: root.selected-topic == "Gaming";
+                        clicked => { root.select-topic("Gaming"); }
+                    }
+
+                    TopicPill {
+                        label: "Technology";
+                        active: root.selected-topic == "Technology";
+                        clicked => { root.select-topic("Technology"); }
+                    }
+
+                    TopicPill {
+                        label: "Podcasts";
+                        active: root.selected-topic == "Podcasts";
+                        clicked => { root.select-topic("Podcasts"); }
+                    }
+
+                    TopicPill {
+                        label: "Education";
+                        active: root.selected-topic == "Education";
+                        clicked => { root.select-topic("Education"); }
                     }
                 }
 
-                // ------------------------------------------------- continue watching
-                if root.continue-videos.length > 0: VerticalBox {
+                // -------------------------------------------- Continue Watching
+                if root.continue-videos.length > 0: VerticalLayout {
                     spacing: 12px;
 
-                    Text {
-                        text: "Continue Watching";
-                        color: Theme.text-primary;
-                        font-size: 20px;
-                        font-weight: 700;
+                    HorizontalLayout {
+                        spacing: 8px;
+                        cross-axis-alignment: center;
+
+                        Rectangle {
+                            width: 3px;
+                            height: 16px;
+                            border-radius: 1.5px;
+                            background: Theme.accent;
+                        }
+
+                        Text {
+                            text: "Continue Watching";
+                            color: Theme.text-primary;
+                            font-size: 18px;
+                            font-weight: 700;
+                        }
                     }
 
                     ScrollView {
                         horizontal-stretch: 1;
-                        max-height: 340px;
-                        horizontal-scrollbar-policy: always-off;
-                        vertical-scrollbar-policy: as-needed;
+                        height: 232px;
+                        horizontal-scrollbar-policy: as-needed;
+                        vertical-scrollbar-policy: always-off;
 
-                        HorizontalBox {
+                        HorizontalLayout {
                             spacing: 16px;
+                            padding-top: 2px;
+                            padding-bottom: 6px;
 
-                            for video in root.continue-videos: VideoCard {
+                            for video in root.continue-videos: GridVideoCard {
                                 video: video;
-                                min-width: 300px;
                                 clicked(id) => {
                                     root.open-video(id);
                                 }
@@ -208,29 +260,42 @@ export component HomePage inherits Rectangle {
                     }
                 }
 
-                // --------------------------------------------------------- favorites
-                if root.favorite-videos.length > 0: VerticalBox {
+                // ---------------------------------------------------- Favorites
+                if root.favorite-videos.length > 0: VerticalLayout {
                     spacing: 12px;
 
-                    Text {
-                        text: "Favorites";
-                        color: Theme.text-primary;
-                        font-size: 20px;
-                        font-weight: 700;
+                    HorizontalLayout {
+                        spacing: 8px;
+                        cross-axis-alignment: center;
+
+                        Rectangle {
+                            width: 3px;
+                            height: 16px;
+                            border-radius: 1.5px;
+                            background: Theme.accent;
+                        }
+
+                        Text {
+                            text: "Favorites";
+                            color: Theme.text-primary;
+                            font-size: 18px;
+                            font-weight: 700;
+                        }
                     }
 
                     ScrollView {
                         horizontal-stretch: 1;
-                        max-height: 340px;
-                        horizontal-scrollbar-policy: always-off;
-                        vertical-scrollbar-policy: as-needed;
+                        height: 232px;
+                        horizontal-scrollbar-policy: as-needed;
+                        vertical-scrollbar-policy: always-off;
 
-                        HorizontalBox {
+                        HorizontalLayout {
                             spacing: 16px;
+                            padding-top: 2px;
+                            padding-bottom: 6px;
 
-                            for video in root.favorite-videos: VideoCard {
+                            for video in root.favorite-videos: GridVideoCard {
                                 video: video;
-                                min-width: 300px;
                                 clicked(id) => {
                                     root.open-video(id);
                                 }
@@ -239,42 +304,60 @@ export component HomePage inherits Rectangle {
                     }
                 }
 
-                // ---------------------------------------------------------- explore
-                Text {
-                    text: root.selected-topic == ""
-                        ? "Explore"
-                        : ("Explore · " + root.selected-topic);
-                    color: Theme.text-primary;
-                    font-size: 20px;
-                    font-weight: 700;
-                }
+                // ---------------------------------------- Explore Grid Section
+                VerticalLayout {
+                    spacing: 14px;
 
-                if root.home-status-text != "" && root.videos.length == 0: Text {
-                    text: root.home-status-text;
-                    color: Theme.text-secondary;
-                    font-size: 14px;
-                }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        cross-axis-alignment: center;
 
-                if root.videos.length > 0: ScrollView {
-                    horizontal-stretch: 1;
-                    max-height: 520px;
-                    horizontal-scrollbar-policy: always-off;
-                    vertical-scrollbar-policy: as-needed;
+                        Rectangle {
+                            width: 3px;
+                            height: 16px;
+                            border-radius: 1.5px;
+                            background: Theme.accent;
+                        }
 
-                    HorizontalBox {
-                        spacing: 16px;
+                        Text {
+                            text: root.selected-topic == ""
+                                ? "Explore Feed"
+                                : ("Explore · " + root.selected-topic);
+                            color: Theme.text-primary;
+                            font-size: 18px;
+                            font-weight: 700;
+                        }
+                    }
 
-                        for video in root.videos: VideoCard {
+                    if root.home-status-text != "" && root.videos.length == 0: Text {
+                        text: root.home-status-text;
+                        color: Theme.text-secondary;
+                        font-size: 14px;
+                    }
+
+                    // Responsive Grid Feed of 16:9 Video Cards
+                    if root.videos.length > 0: FlexboxLayout {
+                        spacing: 18px;
+                        flex-direction: row;
+                        flex-wrap: wrap;
+                        alignment: start;
+
+                        for video in root.videos: GridVideoCard {
                             video: video;
-                            min-width: 300px;
                             clicked(id) => {
                                 root.open-video(id);
                             }
                         }
+                    }
 
-                        if root.load-more-enabled: SecondaryButton {
-                            label: "Load More";
-                            min-button-width: 100px;
+                    // Load More Action
+                    if root.load-more-enabled: HorizontalLayout {
+                        alignment: center;
+                        padding-top: 12px;
+                        padding-bottom: 24px;
+
+                        Button {
+                            text: "Load More Videos";
                             clicked => {
                                 root.load-more();
                             }
@@ -282,20 +365,21 @@ export component HomePage inherits Rectangle {
                     }
                 }
 
-                // ---------------------------------------------------------- empty
+                // ------------------------------------------------- Empty State
                 if root.continue-videos.length == 0
                     && root.favorite-videos.length == 0
                     && root.videos.length == 0
                     && !root.home-loading: Rectangle {
                     background: transparent;
-                    height: 400px;
+                    height: 320px;
 
-                    VerticalBox {
+                    VerticalLayout {
                         alignment: center;
-                        spacing: 12px;
+                        cross-axis-alignment: center;
+                        spacing: 14px;
 
                         Text {
-                            text: "Start exploring";
+                            text: "Welcome to MutsukiTube";
                             color: Theme.text-primary;
                             font-size: 22px;
                             font-weight: 700;
@@ -303,19 +387,26 @@ export component HomePage inherits Rectangle {
                         }
 
                         Text {
-                            text: "Pick a topic above or search for a video to begin browsing.";
+                            text: "Select a topic above or search for a video to start streaming.";
                             color: Theme.text-secondary;
                             font-size: 14px;
                             horizontal-alignment: center;
-                            width: 520px;
                             wrap: word-wrap;
                         }
 
-                        SecondaryButton {
-                            label: "Browse Topics";
-                            min-button-width: 120px;
-                            clicked => {
-                                root.select-topic("Music");
+                        HorizontalLayout {
+                            spacing: 10px;
+                            alignment: center;
+                            padding-top: 6px;
+
+                            Button {
+                                text: "Browse Music";
+                                clicked => { root.select-topic("Music"); }
+                            }
+
+                            Button {
+                                text: "Browse Gaming";
+                                clicked => { root.select-topic("Gaming"); }
                             }
                         }
                     }

@@ -17,31 +17,46 @@ export component EpisodeRow inherits Rectangle {
 
     callback clicked(int);
 
-    height: 82px;
-    border-radius: Theme.radius-sm;
+    height: 84px;
+    border-radius: Theme.radius;
 
     background: root.selected
         ? Theme.accent-soft
         : (touch.has-hover ? Theme.surface-hover : Theme.surface);
 
-    border-width: root.selected ? 1px : 0px;
-    border-color: Theme.accent;
+    border-width: 1px;
+    border-color: root.selected
+        ? Theme.accent
+        : (touch.has-hover ? Theme.border-strong : Theme.border);
 
     touch := TouchArea {
+        mouse-cursor: pointer;
         clicked => { root.clicked(root.item.number); }
     }
 
     HorizontalLayout {
         padding: 8px;
         spacing: 12px;
+        alignment: start;
+        cross-axis-alignment: center;
 
-        // Landscape thumbnail with a neutral fallback.
+        // Left accent indicator bar when selected or actively playing
+        if root.selected || root.item.playing: Rectangle {
+            width: 3px;
+            height: 48px;
+            border-radius: 2px;
+            background: Theme.accent;
+        }
+
+        // Landscape thumbnail with a neutral fallback
         Rectangle {
-            width: 128px;
-            height: 66px;
+            width: 120px;
+            height: 68px;
             border-radius: Theme.radius-sm;
             clip: true;
             background: Theme.surface-sunken;
+            border-width: 1px;
+            border-color: Theme.border;
 
             Image {
                 source: root.item.thumbnail;
@@ -63,55 +78,123 @@ export component EpisodeRow inherits Rectangle {
                 width: 100%;
                 height: 100%;
                 background: #000000aa;
+
                 Text {
                     text: "▶";
-                    color: Theme.text-primary;
-                    font-size: 22px;
+                    color: #ffffff;
+                    font-size: 20px;
                     horizontal-alignment: center;
                     vertical-alignment: center;
                 }
             }
         }
 
+        // Episode metadata details
         VerticalLayout {
-            padding-top: 4px;
+            horizontal-stretch: 1;
             spacing: 4px;
+            alignment: center;
 
-            Text {
-                text: "Episode " + root.item.number;
-                color: Theme.text-muted;
-                font-size: 12px;
-                font-weight: 600;
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+                cross-axis-alignment: center;
+
+                Text {
+                    text: "Episode " + root.item.number;
+                    color: (root.selected || root.item.playing) ? Theme.accent : Theme.text-secondary;
+                    font-size: 12px;
+                    font-weight: 700;
+                }
+
+                if root.item.playing: Rectangle {
+                    height: 18px;
+                    border-radius: 4px;
+                    background: Theme.accent;
+
+                    HorizontalLayout {
+                        padding-left: 6px;
+                        padding-right: 6px;
+                        alignment: center;
+                        cross-axis-alignment: center;
+
+                        Text {
+                            text: "PLAYING";
+                            color: #ffffff;
+                            font-size: 10px;
+                            font-weight: 800;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
             }
 
             Text {
                 text: root.item.title;
                 color: Theme.text-primary;
                 font-size: 14px;
+                font-weight: 600;
                 wrap: word-wrap;
                 max-lines: 1;
                 overflow: elide;
             }
 
             HorizontalLayout {
-                spacing: 10px;
+                spacing: 8px;
+                alignment: start;
+                cross-axis-alignment: center;
 
-                if root.item.watched: Text {
-                    text: "✓ Watched";
-                    color: Theme.success;
-                    font-size: 12px;
+                if root.item.watched: Rectangle {
+                    height: 18px;
+                    border-radius: 4px;
+                    background: #30d15822;
+                    border-width: 1px;
+                    border-color: #30d15855;
+
+                    HorizontalLayout {
+                        padding-left: 6px;
+                        padding-right: 6px;
+                        alignment: center;
+                        cross-axis-alignment: center;
+
+                        Text {
+                            text: "✓ Watched";
+                            color: Theme.success;
+                            font-size: 11px;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                        }
+                    }
                 }
 
-                if root.item.status != "": Text {
-                    text: root.item.status;
-                    color: Theme.accent;
-                    font-size: 12px;
+                if root.item.status != "": Rectangle {
+                    height: 18px;
+                    border-radius: 4px;
+                    background: Theme.accent-soft;
+                    border-width: 1px;
+                    border-color: Theme.accent;
+
+                    HorizontalLayout {
+                        padding-left: 6px;
+                        padding-right: 6px;
+                        alignment: center;
+                        cross-axis-alignment: center;
+
+                        Text {
+                            text: root.item.status;
+                            color: Theme.accent;
+                            font-size: 11px;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                        }
+                    }
                 }
 
                 if root.item.duration != "": Text {
                     text: root.item.duration;
                     color: Theme.text-muted;
                     font-size: 12px;
+                    vertical-alignment: center;
                 }
             }
         }

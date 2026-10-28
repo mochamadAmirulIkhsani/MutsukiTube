@@ -8,11 +8,12 @@ export component PosterShelf inherits VerticalLayout {
 
     callback activated(string);
 
-    spacing: 12px;
+    spacing: 14px;
 
     if root.heading != "": HorizontalLayout {
         spacing: 10px;
-        alignment: center;
+        alignment: start;
+        cross-axis-alignment: center;
 
         Rectangle {
             width: 3px;
@@ -27,6 +28,29 @@ export component PosterShelf inherits VerticalLayout {
             font-size: 18px;
             font-weight: 700;
             vertical-alignment: center;
+        }
+
+        if root.cards.length > 0: Rectangle {
+            height: 20px;
+            border-radius: 10px;
+            background: Theme.surface-elevated;
+            border-width: 1px;
+            border-color: Theme.border;
+
+            HorizontalLayout {
+                padding-left: 8px;
+                padding-right: 8px;
+                alignment: center;
+                cross-axis-alignment: center;
+
+                Text {
+                    text: root.cards.length;
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: Theme.text-secondary;
+                    vertical-alignment: center;
+                }
+            }
         }
     }
 

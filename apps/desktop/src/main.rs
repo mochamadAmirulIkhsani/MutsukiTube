@@ -100,8 +100,52 @@ fn get_slint_hwnd(ui: &AppWindow) -> Option<windows_sys::Win32::Foundation::HWND
     }
 }
 
+#[cfg(target_os = "windows")]
+fn set_window_icon_win32(hwnd: windows_sys::Win32::Foundation::HWND) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        LoadImageW, SendMessageW, ICON_BIG, ICON_SMALL, IMAGE_ICON, LR_DEFAULTSIZE,
+        LR_LOADFROMFILE, WM_SETICON,
+    };
+
+    let base_dirs = [
+        std::path::PathBuf::from("apps/desktop/ui/assets/favicon.ico"),
+        std::path::PathBuf::from("ui/assets/favicon.ico"),
+    ];
+
+    for candidate in base_dirs {
+        if candidate.exists() {
+            let full_path = std::fs::canonicalize(&candidate).unwrap_or(candidate);
+            let wide: Vec<u16> = full_path
+                .to_string_lossy()
+                .encode_utf16()
+                .chain(std::iter::once(0))
+                .collect();
+            unsafe {
+                let hicon = LoadImageW(
+                    std::ptr::null_mut(),
+                    wide.as_ptr(),
+                    IMAGE_ICON,
+                    0,
+                    0,
+                    LR_LOADFROMFILE | LR_DEFAULTSIZE,
+                );
+                if !hicon.is_null() {
+                    SendMessageW(hwnd, WM_SETICON, ICON_BIG as usize, hicon as isize);
+                    SendMessageW(hwnd, WM_SETICON, ICON_SMALL as usize, hicon as isize);
+                    break;
+                }
+            }
+        }
+    }
+}
+
 fn main() -> Result<(), slint::PlatformError> {
     let ui = AppWindow::new()?;
+
+    #[cfg(target_os = "windows")]
+    if let Some(hwnd) = get_slint_hwnd(&ui) {
+        set_window_icon_win32(hwnd);
+    }
 
     let runtime = Rc::new(tokio::runtime::Runtime::new().expect("failed to create Tokio runtime"));
 
@@ -189,7 +233,11 @@ fn main() -> Result<(), slint::PlatformError> {
     }
 
     #[cfg(target_os = "windows")]
-    let native_session = Rc::new(RefCell::new(NativeVideoSession::new()));
+    let native_session = {
+        let mut session = NativeVideoSession::new();
+        session.controller.set_pip_enabled(true);
+        Rc::new(RefCell::new(session))
+    };
 
     #[cfg(target_os = "windows")]
     handlers::player::register(&ui, &context, native_session.clone());
@@ -380,6 +428,28 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = ui.as_weak();
         let context = context.clone();
 
+        ui.on_nav_watch(move || {
+            let Some(ui) = weak.upgrade() else {
+                return;
+            };
+
+            let video_id = ui.get_selected_video_id().to_string();
+            if !video_id.is_empty() {
+                navigation::push_navigation(
+                    &ui,
+                    &context,
+                    navigation::NavEntry::new(navigation::NavRoute::WatchPage { video_id }),
+                );
+            } else {
+                ui.set_current_page("watch".into());
+            }
+        });
+    }
+
+    {
+        let weak = ui.as_weak();
+        let context = context.clone();
+
         ui.on_load_home(move || {
             let Some(ui) = weak.upgrade() else {
                 return;
@@ -497,6 +567,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 };
 
                 let is_watch = ui.get_current_page().as_str() == "watch";
+                let pip_active = ui.get_pip_active();
 
                 let is_minimized = ui.window().is_minimized();
 
@@ -604,7 +675,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     let transition_pending = session.pending_anime_source.is_some()
                         || session.pending_video_id.is_some();
 
-                    if is_watch
+                    if (is_watch || pip_active)
                         && playback_state == "playing"
                         && session.controller.media_loaded()
                         && !transition_pending
@@ -686,7 +757,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 // else can be attributed to it. `anime_pending_playing` is left
                 // alone: a just-requested episode may still be resolving its
                 // stream and will consume it when the media actually loads.
-                if ready && !is_watch {
+                if ready && !is_watch && !pip_active {
                     let position = session.controller.position().unwrap_or(0.0);
                     let duration = session.controller.duration().unwrap_or(0.0);
 
@@ -699,7 +770,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
                 session.controller.on_navigation(is_watch);
 
-                if !is_watch {
+                if !is_watch && !pip_active {
                     session.pending_video_id = None;
                     video_loading.set(false);
 
@@ -954,7 +1025,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
                 let controller_state = session.controller.playback_state().as_str();
 
-                let should_show_surface = is_watch
+                let should_show_surface = (is_watch || pip_active)
                     && !is_minimized
                     && !is_loading
                     && controller_state != "error"

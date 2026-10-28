@@ -4,6 +4,7 @@ import {
     VerticalBox,
     HorizontalBox,
 } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
 
 export component SettingsPage inherits Rectangle {
     in property <string> provider-mode: "auto";
@@ -12,18 +13,19 @@ export component SettingsPage inherits Rectangle {
     callback back();
     callback save-provider(string);
 
-    background: #0f0f0f;
+    background: Theme.bg;
 
     VerticalBox {
         padding: 24px;
         spacing: 20px;
 
+        // Header
         HorizontalBox {
             spacing: 12px;
+            alignment: center;
 
             Button {
-                text: "Back";
-
+                text: "‹ Back";
                 clicked => {
                     root.back();
                 }
@@ -31,52 +33,98 @@ export component SettingsPage inherits Rectangle {
 
             Text {
                 text: "Settings";
-                color: white;
-                font-size: 26px;
+                color: Theme.text-primary;
+                font-size: 20px;
                 font-weight: 700;
+                vertical-alignment: center;
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+                background: transparent;
             }
         }
 
-        Text {
-            text: "YouTube Search Provider";
-            color: white;
-            font-size: 18px;
-            font-weight: 600;
-        }
+        // Cupertino Grouped Settings Card
+        Rectangle {
+            background: Theme.surface;
+            border-radius: Theme.radius;
+            border-width: 1px;
+            border-color: Theme.border;
 
-        provider-select := ComboBox {
-            model: ["auto", "native", "ytdlp"];
+            VerticalBox {
+                padding: 16px;
+                spacing: 14px;
 
-            current-value: root.provider-mode;
-        }
+                Text {
+                    text: "YouTube Search Provider";
+                    color: Theme.text-primary;
+                    font-size: 15px;
+                    font-weight: 600;
+                }
 
-        Text {
-            text: "Auto: Native first, yt-dlp fallback";
-            color: #aaaaaa;
-        }
+                HorizontalBox {
+                    spacing: 12px;
+                    alignment: center;
 
-        Text {
-            text: "Native: Rust InnerTube only";
-            color: #aaaaaa;
-        }
+                    provider-select := ComboBox {
+                        model: ["auto", "native", "ytdlp"];
+                        current-value: root.provider-mode;
+                        min-width: 140px;
+                    }
 
-        Text {
-            text: "yt-dlp: External extractor";
-            color: #aaaaaa;
-        }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        background: transparent;
+                    }
 
-        Button {
-            text: "Save Settings";
+                    Button {
+                        text: "Save";
+                        primary: true;
+                        clicked => {
+                            root.save-provider(provider-select.current-value);
+                        }
+                    }
+                }
 
-            clicked => {
-                root.save-provider(
-                    provider-select.current-value);
+                Rectangle {
+                    height: 1px;
+                    background: Theme.border;
+                }
+
+                VerticalLayout {
+                    spacing: 4px;
+
+                    Text {
+                        text: "• Auto: Native InnerTube first, yt-dlp fallback if blocked.";
+                        color: Theme.text-secondary;
+                        font-size: 13px;
+                    }
+
+                    Text {
+                        text: "• Native: Fast Rust InnerTube client only (no external python needed).";
+                        color: Theme.text-secondary;
+                        font-size: 13px;
+                    }
+
+                    Text {
+                        text: "• yt-dlp: Robust external extractor backend.";
+                        color: Theme.text-secondary;
+                        font-size: 13px;
+                    }
+                }
             }
         }
 
-        if root.status-text != "": Text {
-            text: root.status-text;
-            color: #bbbbbb;
+        if root.status-text != "": HorizontalBox {
+            alignment: start;
+
+            Text {
+                text: root.status-text;
+                color: Theme.success;
+                font-size: 13px;
+                font-weight: 500;
+            }
         }
 
         Rectangle {

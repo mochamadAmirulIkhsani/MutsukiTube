@@ -1,0 +1,216 @@
+import { Theme } from "../theme.slint";
+
+component NavItem inherits Rectangle {
+    in property <image> icon;
+    in property <string> label: "";
+    in property <bool> active: false;
+    in property <bool> collapsed: false;
+
+    callback clicked();
+
+    height: 38px;
+    border-radius: Theme.radius-sm;
+
+    background: root.active
+        ? Theme.surface-active
+        : (touch.has-hover ? Theme.surface-hover : transparent);
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    // Left active accent bar for Cupertino sidebar style
+    if root.active: Rectangle {
+        x: 0px;
+        y: 8px;
+        width: 3px;
+        height: parent.height - 16px;
+        border-radius: 1.5px;
+        background: Theme.accent;
+    }
+
+    HorizontalLayout {
+        padding-left: root.collapsed ? 0px : 14px;
+        padding-right: root.collapsed ? 0px : 12px;
+        spacing: 12px;
+        alignment: root.collapsed ? center : start;
+        cross-axis-alignment: center;
+
+        Image {
+            source: root.icon;
+            width: 18px;
+            height: 18px;
+            colorize: root.active ? Theme.accent : (touch.has-hover ? Theme.text-primary : Theme.text-secondary);
+        }
+
+        if !root.collapsed: Text {
+            text: root.label;
+            font-size: 14px;
+            font-weight: root.active ? 600 : 500;
+            color: root.active ? Theme.text-primary : (touch.has-hover ? Theme.text-primary : Theme.text-secondary);
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+}
+
+export component Sidebar inherits Rectangle {
+    in property <string> current-page: "youtube-home";
+    in property <bool> collapsed: false;
+
+    callback nav-home();
+    callback nav-search();
+    callback nav-anime();
+    callback nav-library();
+    callback nav-history();
+    callback nav-settings();
+    callback toggle-collapse();
+
+    width: root.collapsed ? 64px : 210px;
+    background: Theme.sidebar-bg;
+
+    // Right border separating sidebar from content
+    Rectangle {
+        x: parent.width - 1px;
+        y: 0px;
+        width: 1px;
+        height: 100%;
+        background: Theme.border;
+    }
+
+    VerticalLayout {
+        padding-top: 14px;
+        padding-bottom: 14px;
+        padding-left: 8px;
+        padding-right: 9px;
+        spacing: 6px;
+
+        // Top Brand & Collapse Toggle
+        Rectangle {
+            height: 42px;
+
+            HorizontalLayout {
+                padding-left: root.collapsed ? 0px : 8px;
+                padding-right: 0px;
+                spacing: 8px;
+                alignment: root.collapsed ? center : space-between;
+                cross-axis-alignment: center;
+
+                if !root.collapsed: HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+                    cross-axis-alignment: center;
+
+                    Image {
+                        source: @image-url("../assets/favicon.ico");
+                        width: 20px;
+                        height: 20px;
+                    }
+
+                    // Brand Title
+                    Text {
+                        text: "MutsukiTube";
+                        font-size: 16px;
+                        font-weight: 700;
+                        color: Theme.text-primary;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // Collapse/Expand button
+                Rectangle {
+                    width: 32px;
+                    height: 32px;
+                    border-radius: Theme.radius-sm;
+                    background: toggle-touch.has-hover ? Theme.surface-hover : transparent;
+
+                    Image {
+                        source: @image-url("../assets/menu.svg");
+                        width: 16px;
+                        height: 16px;
+                        colorize: Theme.text-secondary;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                    }
+
+                    toggle-touch := TouchArea {
+                        clicked => {
+                            root.toggle-collapse();
+                        }
+                    }
+                }
+            }
+        }
+
+        // Section Separator
+        Rectangle {
+            height: 1px;
+            background: Theme.border;
+        }
+
+        // Navigation Destination List
+        VerticalLayout {
+            spacing: 3px;
+            padding-top: 6px;
+
+            NavItem {
+                icon: @image-url("../assets/home.svg");
+                label: "Home";
+                collapsed: root.collapsed;
+                active: root.current-page == "youtube-home";
+                clicked => { root.nav-home(); }
+            }
+
+            NavItem {
+                icon: @image-url("../assets/search.svg");
+                label: "Search";
+                collapsed: root.collapsed;
+                active: root.current-page == "search";
+                clicked => { root.nav-search(); }
+            }
+
+            NavItem {
+                icon: @image-url("../assets/anime.svg");
+                label: "Anime";
+                collapsed: root.collapsed;
+                active: root.current-page == "anime";
+                clicked => { root.nav-anime(); }
+            }
+
+            NavItem {
+                icon: @image-url("../assets/library.svg");
+                label: "Library";
+                collapsed: root.collapsed;
+                active: root.current-page == "library";
+                clicked => { root.nav-library(); }
+            }
+
+            NavItem {
+                icon: @image-url("../assets/history.svg");
+                label: "History";
+                collapsed: root.collapsed;
+                active: root.current-page == "history";
+                clicked => { root.nav-history(); }
+            }
+        }
+
+        // Push settings to the bottom
+        Rectangle {
+            vertical-stretch: 1;
+            background: transparent;
+        }
+
+        Rectangle {
+            height: 1px;
+            background: Theme.border;
+        }
+
+        NavItem {
+            icon: @image-url("../assets/settings.svg");
+            label: "Settings";
+            collapsed: root.collapsed;
+            active: root.current-page == "settings";
+            clicked => { root.nav-settings(); }
+        }
+    }
+}

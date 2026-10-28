@@ -19,10 +19,11 @@ export component AnimePosterCard inherits Rectangle {
     callback clicked(string);
 
     width: Theme.poster-width;
-    height: Theme.poster-height + 46px;
+    height: Theme.poster-height + 52px;
     background: transparent;
 
     touch := TouchArea {
+        mouse-cursor: pointer;
         clicked => { root.clicked(root.card.key); }
     }
 
@@ -50,38 +51,51 @@ export component AnimePosterCard inherits Rectangle {
                 image-fit: cover;
             }
 
-            if !root.card.has-poster: Text {
-                text: root.card.title;
-                color: Theme.text-muted;
-                font-size: 13px;
-                wrap: word-wrap;
-                horizontal-alignment: center;
-                vertical-alignment: center;
+            if !root.card.has-poster: Rectangle {
+                width: 100%;
+                height: 100%;
+                background: Theme.surface;
+
+                VerticalLayout {
+                    padding: 12px;
+                    alignment: center;
+
+                    Text {
+                        text: root.card.title;
+                        color: Theme.text-muted;
+                        font-size: 13px;
+                        wrap: word-wrap;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
             }
 
             // Optional metadata badge (e.g. "EP 12", "2023"); only shown when data exists.
             if root.card.badge != "": Rectangle {
-                x: 6px;
-                y: 6px;
+                x: 8px;
+                y: 8px;
                 height: 22px;
-                width: badge-text.preferred-width + 16px;
+                width: badge-text.preferred-width + 14px;
                 border-radius: Theme.radius-sm;
-                background: #000000cc;
+                background: #1c1c1ecc;
+                border-width: 1px;
+                border-color: #ffffff20;
 
                 badge-text := Text {
                     text: root.card.badge;
-                    color: Theme.text-primary;
-                    font-size: 12px;
-                    font-weight: 600;
+                    color: #ffffff;
+                    font-size: 11px;
+                    font-weight: 700;
                     vertical-alignment: center;
                     horizontal-alignment: center;
                 }
             }
 
-            // Continue Watching progress; only drawn from real local state.
+            // Continue Watching progress bar
             if root.card.progress > 0.001: Rectangle {
-                y: parent.height - 5px;
-                height: 5px;
+                y: parent.height - 4px;
+                height: 4px;
                 width: parent.width;
                 background: #00000088;
 
@@ -89,13 +103,14 @@ export component AnimePosterCard inherits Rectangle {
                     height: parent.height;
                     width: parent.width * Math.min(root.card.progress, 1.0);
                     background: Theme.accent;
+                    border-radius: 2px;
                 }
             }
         }
 
         Text {
             text: root.card.title;
-            color: root.selected ? Theme.accent : Theme.text-primary;
+            color: (root.selected || touch.has-hover) ? Theme.accent : Theme.text-primary;
             font-size: 13px;
             font-weight: 600;
             wrap: word-wrap;
@@ -105,7 +120,7 @@ export component AnimePosterCard inherits Rectangle {
 
         if root.card.subtitle != "": Text {
             text: root.card.subtitle;
-            color: Theme.text-muted;
+            color: Theme.text-secondary;
             font-size: 12px;
             wrap: word-wrap;
             max-lines: 1;
